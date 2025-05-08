@@ -1,233 +1,233 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import Logo from './Logo';
-import { Heart, X, MessageCircle } from 'lucide-react';
-import AppLayout from './AppLayout';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getPotentialMatches, recordSwipe, getUserMatches } from '../lib/api';
-import { toast } from "sonner";
-import { UserWithRelations } from '../types/database';
+import { Heart, X } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { getPotentialMatches, recordSwipe } from '@/lib/api';
+import { UserWithRelations } from '@/types/database';
+import ProfileCompletionNotification from './ProfileCompletionNotification';
+import { Button } from '@/components/ui/button';
 
-const SwipePage: React.FC = () => {
+interface SwipeCardProps {
+  user: UserWithRelations;
+  onSwipe: (direction: 'left' | 'right') => void;
+}
+
+const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
-  const [matches, setMatches] = useState<string[]>([]);
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  // Fetch potential matches
-  const { data: users = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['potential-matches'],
-    queryFn: getPotentialMatches
-  });
-
-  // Fetch current matches count
-  const { data: currentMatches = [] } = useQuery({
-    queryKey: ['matches'],
-    queryFn: getUserMatches
-  });
-
-  // Get the current user to display
-  const currentUser = users[currentIndex];
-
-  const handleSwipe = async (direction: 'left' | 'right') => {
-    if (!currentUser) return;
-    
-    setSwipeDirection(direction);
-    
-    try {
-      const { isMatch } = await recordSwipe(currentUser.id, direction);
-      
-      // If it was a match, update the matches state
-      if (direction === 'right' && isMatch) {
-        setMatches(prev => [...prev, currentUser.id]);
-        toast.success("It's a match!", {
-          description: `You matched with ${currentUser.name}!`
+  const [exitX, setExitX] = useState<number | null>(null);
+  
+  // Card dragging functionality
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-200, 0, 200], [-20, 0, 20]);
+  const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
+  const scale = useTransform(x, [-200, -150, 0, 150, 200], [0.8, 0.9, 1, 0.9, 0.8]);
+  const cardBackgroundOpacity = useTransform(x, [-200, 0, 200], [0.8, 0, 0.8]);
+  const rightIndicatorOpacity = useTransform(x, [0, 50, 100], [0, 0.5, 1]);
+  const leftIndicatorOpacity = useTransform(x, [-100, -50, 0], [1, 0.5, 0]);
+  
+  // Record the swipe in the database and check if it's a match
+  const swipeMutation = useMutation({
+    mutationFn: ({ userId, direction }: { userId: string, direction: 'left' | 'right' }) => 
+      recordSwipe(userId, direction),
+    onSuccess: (isMatch) => {
+      if (isMatch === true) {
+        toast.success("It's a match! 🎉", {
+          action: {
+            label: "View Matches",
+            onClick: () => navigate('/matches')
+          }
         });
-        
-        // Invalidate and refetch matches data
-        queryClient.invalidateQueries({ queryKey: ['matches'] });
       }
-      
-      // Wait for animation, then reset and move to next card
-      setTimeout(() => {
-        setSwipeDirection(null);
-        if (currentIndex < users.length - 1) {
-          setCurrentIndex(currentIndex + 1);
-        } else {
-          // Refetch more potential matches if we've run out
-          refetch().then(() => setCurrentIndex(0));
-          toast.info("Looking for more Tigers...");
-        }
-      }, 300);
-    } catch (error) {
-      console.error('Error recording swipe:', error);
-      toast.error("Couldn't record your choice");
-      setSwipeDirection(null);
+    },
+    onError: () => {
+      toast.error("Error recording swipe");
+    }
+  });
+
+  const handleDrag = (event: any, info: any) => {
+    if (info.offset.x > 100) {
+      setExitX(200);
+      onSwipe('right');
+      swipeMutation.mutate({ userId: user.id, direction: 'right' });
+    } else if (info.offset.x < -100) {
+      setExitX(-200);
+      onSwipe('left');
+      swipeMutation.mutate({ userId: user.id, direction: 'left' });
     }
   };
-
-  const handleViewProfile = () => {
-    if (currentUser) {
-      navigate(`/profile/${currentUser.id}`);
-    }
+  
+  const handleButtonSwipe = (direction: 'left' | 'right') => {
+    setExitX(direction === 'right' ? 200 : -200);
+    onSwipe(direction);
+    swipeMutation.mutate({ userId: user.id, direction });
   };
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <AppLayout matchesCount={currentMatches.length}>
-        <header className="container mx-auto px-4 py-4 flex justify-center">
-          <Logo />
-        </header>
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-princeton-white text-xl animate-pulse">
-            Finding Tigers...
-          </div>
-        </main>
-      </AppLayout>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <AppLayout matchesCount={currentMatches.length}>
-        <header className="container mx-auto px-4 py-4 flex justify-center">
-          <Logo />
-        </header>
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-red-500 mb-4">Failed to load profiles</div>
-            <button 
-              onClick={() => refetch()}
-              className="px-4 py-2 bg-princeton-orange text-black rounded-lg"
-            >
-              Try Again
-            </button>
-          </div>
-        </main>
-      </AppLayout>
-    );
-  }
-
-  // No users to display
-  if (users.length === 0) {
-    return (
-      <AppLayout matchesCount={currentMatches.length}>
-        <header className="container mx-auto px-4 py-4 flex justify-center">
-          <Logo />
-        </header>
-        <main className="flex-1 flex items-center justify-center px-4">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-              <Heart size={32} className="text-princeton-orange" />
-            </div>
-            <h3 className="text-xl font-bold text-princeton-white mb-2">No more Tigers to show</h3>
-            <p className="text-princeton-white/70 mb-6">
-              Check back later for more potential matches!
-            </p>
-            <button 
-              onClick={() => refetch()}
-              className="px-4 py-2 bg-princeton-orange text-black rounded-lg"
-            >
-              Refresh
-            </button>
-          </div>
-        </main>
-      </AppLayout>
-    );
-  }
 
   return (
-    <AppLayout matchesCount={currentMatches.length}>
-      <header className="container mx-auto px-4 py-4 flex justify-center">
-        <Logo />
-      </header>
-
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-6 relative">
-        {currentUser && (
-          <div className="relative w-full max-w-sm h-[70vh] mx-auto">
-            {/* Current card */}
-            <div 
-              ref={cardRef}
-              className={`swipe-card ${
-                swipeDirection === 'right' 
-                  ? 'animate-swipe-right' 
-                  : swipeDirection === 'left' 
-                  ? 'animate-swipe-left' 
-                  : ''
-              }`}
-              onClick={handleViewProfile}
-            >
-              <div className="w-full h-full flex flex-col">
-                {/* Photo */}
-                <div className="relative flex-1 bg-gray-800">
-                  {currentUser.photos && currentUser.photos.length > 0 ? (
-                    <img 
-                      src={currentUser.photos[0].photo_url} 
-                      alt={currentUser.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <div className="text-white">No photo available</div>
-                    </div>
-                  )}
-                  
-                  {/* Overlay gradient */}
-                  <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black to-transparent" />
-                  
-                  {/* User info overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                    <div className="text-2xl font-bold">
-                      {currentUser.name}, {currentUser.class_year}
-                    </div>
-                    {currentUser.vibe && (
-                      <div className="text-sm text-princeton-orange font-medium mb-1">
-                        {currentUser.vibe}
-                      </div>
-                    )}
-                    <div className="text-sm text-white/80">
-                      {currentUser.bio || 'No bio available'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Action buttons */}
-            <div className="absolute -bottom-16 left-0 right-0 flex justify-center gap-6">
-              <button 
-                onClick={() => handleSwipe('left')}
-                className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg border-2 border-red-500 text-red-500"
-              >
-                <X size={32} />
-              </button>
-              
-              <button 
-                onClick={() => handleSwipe('right')}
-                className="w-16 h-16 bg-princeton-orange rounded-full flex items-center justify-center shadow-lg"
-              >
-                <Heart size={32} className="text-white" />
-              </button>
-            </div>
-          </div>
-        )}
-        
-        {/* Match notification */}
-        {currentMatches.length > 0 && (
-          <button
-            onClick={() => navigate('/matches')} 
-            className="absolute top-4 right-4 bg-princeton-orange text-black px-3 py-2 rounded-full animate-pulse font-bold"
+    <div className="h-full w-full relative">
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        onDragEnd={handleDrag}
+        style={{ x, rotate, opacity, scale }}
+        exit={{ x: exitX || 0 }}
+        transition={{ duration: 0.2 }}
+        className="absolute w-full h-full bg-secondary rounded-xl overflow-hidden"
+      >
+        <div className="relative h-full">
+          {/* Profile Image */}
+          <img
+            src={user.photos && user.photos.length > 0 ? user.photos[0].photo_url : '/placeholder.svg'}
+            alt={user.name}
+            className="w-full h-full object-cover"
+          />
+          
+          {/* Swipe Indicators */}
+          <motion.div 
+            className="absolute top-4 right-4 bg-green-500 p-2 rounded-full"
+            style={{ opacity: rightIndicatorOpacity }}
           >
-            {currentMatches.length} {currentMatches.length === 1 ? 'Match' : 'Matches'}!
-          </button>
-        )}
-      </main>
-    </AppLayout>
+            <Heart size={32} className="text-white" />
+          </motion.div>
+          
+          <motion.div 
+            className="absolute top-4 left-4 bg-red-500 p-2 rounded-full"
+            style={{ opacity: leftIndicatorOpacity }}
+          >
+            <X size={32} className="text-white" />
+          </motion.div>
+          
+          {/* Profile Info */}
+          <motion.div 
+            className="absolute bottom-0 w-full bg-gradient-to-t from-black to-transparent p-6"
+            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0))" }}
+          >
+            <h2 className="text-2xl font-bold text-white mb-0">{user.name}, {user.class_year}</h2>
+            {user.major && <p className="text-princeton-orange mb-1">{user.major}</p>}
+            {user.bio && <p className="text-white/80 line-clamp-3 mb-2">{user.bio}</p>}
+            
+            <div className="flex flex-wrap gap-1">
+              {user.interests && user.interests.slice(0, 3).map((interest, index) => (
+                <span key={index} className="px-2 py-0.5 bg-white/30 rounded-full text-xs text-white">
+                  {interest.name}
+                </span>
+              ))}
+              
+              {user.interests && user.interests.length > 3 && (
+                <span className="px-2 py-0.5 rounded-full text-xs text-white">
+                  +{user.interests.length - 3} more
+                </span>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const NoMoreUsers = () => (
+  <div className="h-full w-full flex flex-col items-center justify-center p-8 bg-secondary rounded-xl text-center">
+    <div className="mb-4 text-6xl">👀</div>
+    <h2 className="text-2xl font-bold text-princeton-white mb-2">No more Tigers nearby</h2>
+    <p className="text-princeton-white/70 mb-6">Check back later for new matches</p>
+  </div>
+);
+
+const SwipePage: React.FC = () => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Fetch potential matches
+  const { data: potentialMatches, isLoading, isError } = useQuery({
+    queryKey: ['potential-matches'],
+    queryFn: getPotentialMatches,
+  });
+
+  const handleSwipe = () => {
+    setCurrentIndex(prevIndex => prevIndex + 1);
+  };
+
+  // Show empty state for loading
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-black to-[#121212] p-4">
+        <div className="container mx-auto max-w-md h-full flex flex-col">
+          <div className="mb-6">
+            <ProfileCompletionNotification />
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="animate-pulse text-princeton-white">Loading potential matches...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-black to-[#121212] p-4">
+        <div className="container mx-auto max-w-md h-full flex flex-col">
+          <div className="mb-6">
+            <ProfileCompletionNotification />
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-princeton-white">Error loading matches</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const noMoreUsers = !potentialMatches || potentialMatches.length === 0 || currentIndex >= potentialMatches.length;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-black to-[#121212] p-4">
+      <div className="container mx-auto max-w-md h-full flex flex-col">
+        <div className="mb-6">
+          <ProfileCompletionNotification />
+        </div>
+        
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 relative">
+            {!noMoreUsers ? (
+              <SwipeCard
+                user={potentialMatches[currentIndex]}
+                onSwipe={handleSwipe}
+              />
+            ) : (
+              <NoMoreUsers />
+            )}
+          </div>
+          
+          <div className="flex justify-center gap-6 mt-6 mb-12">
+            <Button
+              variant="outline"
+              size="icon"
+              className="w-16 h-16 rounded-full border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+              onClick={() => handleSwipe()}
+              disabled={noMoreUsers}
+            >
+              <X size={32} />
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="icon"
+              className="w-16 h-16 rounded-full border-2 border-green-500 text-green-500 hover:bg-green-500 hover:text-white transition-colors"
+              onClick={() => handleSwipe()}
+              disabled={noMoreUsers}
+            >
+              <Heart size={32} />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

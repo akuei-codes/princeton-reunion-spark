@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
@@ -370,11 +369,45 @@ const ProfileSetupPage: React.FC = () => {
         .select()
         .single();
         
-      if (userError) throw userError;
+      if (userError) {
+        console.error('Error creating user profile:', userError);
+        throw userError;
+      }
+      
+      if (!userData) {
+        throw new Error('Failed to create user profile');
+      }
+      
+      // Check if storage bucket exists and create it if needed
+      const { data: buckets, error: bucketsError } = await supabase
+        .storage
+        .listBuckets();
+        
+      if (bucketsError) {
+        console.error('Error checking storage buckets:', bucketsError);
+      }
+      
+      const userPhotosBucketExists = buckets?.some(bucket => bucket.name === 'user-photos');
+      
+      if (!userPhotosBucketExists) {
+        // Try to create the bucket
+        const { error: createBucketError } = await supabase
+          .storage
+          .createBucket('user-photos', {
+            public: true,
+            fileSizeLimit: MAX_PHOTO_SIZE_MB * 1024 * 1024
+          });
+          
+        if (createBucketError) {
+          console.error('Error creating storage bucket:', createBucketError);
+          toast.error('Failed to set up photo storage. Please try again later or contact support.');
+          return;
+        }
+      }
       
       // Upload photos
-      for (let i = 0; i < photos.length; i++) {
-        const { file } = photos[i];
+      const photoUploadPromises = photos.map(async (photo, i) => {
+        const { file } = photo;
         const fileExt = file.name.split('.').pop();
         const filePath = `${userData.id}/${Date.now()}-${i}.${fileExt}`;
         
@@ -384,7 +417,10 @@ const ProfileSetupPage: React.FC = () => {
           .from('user-photos')
           .upload(filePath, file);
           
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Error uploading photo:', uploadError);
+          throw uploadError;
+        }
         
         // Get public URL
         const { data: { publicUrl } } = supabase
@@ -401,8 +437,16 @@ const ProfileSetupPage: React.FC = () => {
             position: i
           });
           
-        if (photoError) throw photoError;
-      }
+        if (photoError) {
+          console.error('Error creating photo record:', photoError);
+          throw photoError;
+        }
+        
+        return { success: true };
+      });
+      
+      // Wait for all photo uploads to complete
+      await Promise.all(photoUploadPromises);
       
       // Process interests
       for (const interest of selectedInterests) {
@@ -424,7 +468,10 @@ const ProfileSetupPage: React.FC = () => {
             .select()
             .single();
             
-          if (newInterestError) throw newInterestError;
+          if (newInterestError) {
+            console.error('Error creating interest:', newInterestError);
+            throw newInterestError;
+          }
           interestId = newInterest.id;
         }
         
@@ -436,7 +483,10 @@ const ProfileSetupPage: React.FC = () => {
             interest_id: interestId
           });
           
-        if (linkError) throw linkError;
+        if (linkError) {
+          console.error('Error linking interest to user:', linkError);
+          throw linkError;
+        }
       }
       
       // Process clubs
@@ -459,7 +509,10 @@ const ProfileSetupPage: React.FC = () => {
             .select()
             .single();
             
-          if (newClubError) throw newClubError;
+          if (newClubError) {
+            console.error('Error creating club:', newClubError);
+            throw newClubError;
+          }
           clubId = newClub.id;
         }
         
@@ -471,7 +524,10 @@ const ProfileSetupPage: React.FC = () => {
             club_id: clubId
           });
           
-        if (linkError) throw linkError;
+        if (linkError) {
+          console.error('Error linking club to user:', linkError);
+          throw linkError;
+        }
       }
       
       // Mark profile as complete
@@ -482,7 +538,7 @@ const ProfileSetupPage: React.FC = () => {
       
     } catch (error) {
       console.error('Error completing profile:', error);
-      toast.error('Failed to complete profile');
+      toast.error('Error completing profile. Please try again.');
     }
   };
 

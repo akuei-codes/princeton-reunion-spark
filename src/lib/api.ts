@@ -1,6 +1,5 @@
-
 import { supabase } from './supabase';
-import { User, UserWithRelations, Interest, Club, Message, Match, MatchWithUserAndLastMessage, UserPhoto, HotZone, HotZoneWithEvents } from '@/types/database';
+import { User, UserWithRelations, UserPhoto } from '@/types/database';
 import { formatDistanceToNow } from 'date-fns';
 
 // Get current user with full profile details
@@ -359,7 +358,7 @@ export const checkIfMatched = async (userId: string): Promise<boolean> => {
 };
 
 // Get all matches for current user
-export const getUserMatches = async (): Promise<MatchWithUserAndLastMessage[]> => {
+export const getUserMatches = async (): Promise<any> => {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser) return [];
@@ -417,7 +416,7 @@ export const getUserMatches = async (): Promise<MatchWithUserAndLastMessage[]> =
 
     // Filter out null values and sort by unread status and last message time
     return matchesWithDetails
-      .filter(match => match !== null) as MatchWithUserAndLastMessage[];
+      .filter(match => match !== null) as any[];
   } catch (error) {
     console.error('Error getting matches:', error);
     return [];
@@ -425,7 +424,7 @@ export const getUserMatches = async (): Promise<MatchWithUserAndLastMessage[]> =
 };
 
 // Get messages for a match
-export const getMessages = async (matchId: string): Promise<Message[]> => {
+export const getMessages = async (matchId: string): Promise<any> => {
   try {
     const { data: messages, error } = await supabase
       .from('messages')
@@ -446,7 +445,7 @@ export const getMessages = async (matchId: string): Promise<Message[]> => {
 };
 
 // Send a message
-export const sendMessage = async (matchId: string, message: string): Promise<Message | null> => {
+export const sendMessage = async (matchId: string, message: string): Promise<any | null> => {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser) return null;
@@ -494,7 +493,7 @@ export const markMessagesAsRead = async (matchId: string): Promise<boolean> => {
 };
 
 // Get hot zones
-export const getHotZones = async (): Promise<HotZoneWithEvents[]> => {
+export const getHotZones = async (): Promise<any> => {
   try {
     const { data: zones, error } = await supabase
       .from('hot_zones')

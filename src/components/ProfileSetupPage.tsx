@@ -378,8 +378,19 @@ const ProfileSetupPage: React.FC = () => {
         throw new Error('Failed to create user profile');
       }
       
-      // Upload photos directly without trying to create/check bucket
-      // (The bucket should already be created in the Supabase dashboard)
+      // Import ensureBucketExists from supabase utility
+      const { ensureBucketExists } = await import('@/lib/supabase');
+      
+      // Ensure the bucket exists before trying to upload
+      const bucketName = 'user-photos';
+      const bucketReady = await ensureBucketExists(bucketName);
+      
+      if (!bucketReady) {
+        toast.error('Unable to prepare storage. Please try again later.');
+        return;
+      }
+      
+      // Upload photos
       const photoUploadPromises = photos.map(async (photo, i) => {
         try {
           const { file } = photo;
@@ -389,9 +400,10 @@ const ProfileSetupPage: React.FC = () => {
           // Upload to storage
           const { error: uploadError, data: uploadData } = await supabase
             .storage
-            .from('user-photos')
+            .from(bucketName)
             .upload(filePath, file, {
-              upsert: true
+              upsert: true,
+              cacheControl: '3600'
             });
             
           if (uploadError) {
@@ -402,7 +414,7 @@ const ProfileSetupPage: React.FC = () => {
           // Get public URL
           const { data: { publicUrl } } = supabase
             .storage
-            .from('user-photos')
+            .from(bucketName)
             .getPublicUrl(filePath);
             
           // Add to photos table

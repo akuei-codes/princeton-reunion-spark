@@ -16,4 +16,49 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       'Accept': '*/*',
     },
   },
+  // Add retry options for better reliability
+  db: {
+    schema: 'public',
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
 });
+
+// Simple helper function to check if a bucket exists and create if needed
+// This function is intentionally implemented inside this module to avoid circular dependencies
+export const ensureBucketExists = async (bucketName: string): Promise<boolean> => {
+  try {
+    // First check if bucket exists
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    
+    if (listError) {
+      console.error('Error checking buckets:', listError);
+      return false;
+    }
+    
+    const bucketExists = buckets.some(bucket => bucket.name === bucketName);
+    
+    if (!bucketExists) {
+      console.log(`Creating bucket: ${bucketName}`);
+      // Create bucket with public access
+      const { error: createError } = await supabase.storage.createBucket(bucketName, {
+        public: true, 
+        fileSizeLimit: 5242880, // 5MB
+        allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+      });
+      
+      if (createError) {
+        console.error('Error creating bucket:', createError);
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error ensuring bucket exists:', error);
+    return false;
+  }
+};

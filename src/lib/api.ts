@@ -73,56 +73,10 @@ export const updateUserProfile = async (profileData: Partial<User>): Promise<Use
   }
 };
 
-// Create storage bucket if it doesn't exist
-const ensureStorageBucketExists = async (bucketName: string): Promise<boolean> => {
-  try {
-    // Check if bucket exists
-    const { data: buckets, error: listError } = await supabase
-      .storage
-      .listBuckets();
-    
-    if (listError) {
-      console.error('Error checking buckets:', listError);
-      return false;
-    }
-    
-    const bucketExists = buckets.some(bucket => bucket.name === bucketName);
-    
-    if (!bucketExists) {
-      console.log(`Bucket ${bucketName} does not exist, creating it...`);
-      // Create bucket with public access
-      const { error: createError } = await supabase
-        .storage
-        .createBucket(bucketName, {
-          public: true,
-          fileSizeLimit: 5242880, // 5MB
-          allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif']
-        });
-      
-      if (createError) {
-        console.error('Error creating bucket:', createError);
-        return false;
-      }
-      
-      // Set bucket as public
-      const { error: updateError } = await supabase
-        .storage
-        .updateBucket(bucketName, {
-          public: true
-        });
-      
-      if (updateError) {
-        console.error('Error updating bucket visibility:', updateError);
-        return false;
-      }
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error in ensureStorageBucketExists:', error);
-    return false;
-  }
-};
+// Create storage bucket if it doesn't exist - replaced by the helper in supabase.ts
+// const ensureStorageBucketExists = async (bucketName: string): Promise<boolean> => {
+//   // This function is now imported from supabase.ts
+// };
 
 // Upload user photo - Updated with better error handling and bucket creation
 export const uploadUserPhoto = async (file: File, position: number): Promise<UserPhoto | null> => {
@@ -130,9 +84,12 @@ export const uploadUserPhoto = async (file: File, position: number): Promise<Use
     const currentUser = await getCurrentUser();
     if (!currentUser) return null;
 
+    // Import ensureBucketExists from supabase utility
+    const { ensureBucketExists } = await import('./supabase');
+    
     // Ensure the bucket exists
     const bucketName = 'user-photos';
-    const bucketExists = await ensureStorageBucketExists(bucketName);
+    const bucketExists = await ensureBucketExists(bucketName);
     
     if (!bucketExists) {
       throw new Error('Failed to ensure storage bucket exists');
@@ -146,7 +103,8 @@ export const uploadUserPhoto = async (file: File, position: number): Promise<Use
       .storage
       .from(bucketName)
       .upload(filePath, file, {
-        upsert: true
+        upsert: true,
+        cacheControl: '3600'
       });
 
     if (uploadError) {

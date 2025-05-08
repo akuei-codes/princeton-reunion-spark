@@ -21,7 +21,7 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
   const { isProfileComplete } = useAuth(); // Changed from profileComplete to isProfileComplete
 
   // Get current user to check if profile is complete
-  const { data: currentUser } = useQuery<UserWithRelations | null>({
+  const { data: currentUser } = useQuery({
     queryKey: ['current-user'],
     queryFn: getCurrentUser
   });

@@ -32,8 +32,8 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
   const swipeMutation = useMutation({
     mutationFn: ({ userId, direction }: { userId: string, direction: 'left' | 'right' }) => 
       recordSwipe(userId, direction),
-    onSuccess: (isMatch) => {
-      if (isMatch === true) {
+    onSuccess: (data) => {
+      if (data === true) {
         toast.success("It's a match! 🎉", {
           action: {
             label: "View Matches",
@@ -74,9 +74,8 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
   const renderInterests = () => {
     if (!user.interests || user.interests.length === 0) return null;
     
-    // Convert interests to simple strings for display
+    // Handle different potential interest formats based on our updated type
     const interestsToDisplay = user.interests.map((interest: any) => {
-      // Handle different potential interest formats
       if (typeof interest === 'string') return interest;
       if (interest?.name?.name) return interest.name.name;
       if (interest?.name) return interest.name;
@@ -179,7 +178,7 @@ const SwipePage: React.FC = () => {
   // Fetch potential matches
   const { data: potentialMatches, isLoading, isError } = useQuery({
     queryKey: ['potential-matches'],
-    queryFn: getPotentialMatches,
+    queryFn: getPotentialMatches
   });
 
   const handleSwipe = () => {
@@ -191,24 +190,20 @@ const SwipePage: React.FC = () => {
     if (!potentialMatches || currentIndex >= potentialMatches.length) return;
     
     const user = potentialMatches[currentIndex];
-    const swipeMutation = {
-      mutate: ({ userId, direction }: { userId: string, direction: 'left' | 'right' }) => {
-        recordSwipe(userId, direction).then(isMatch => {
-          if (isMatch) {
-            toast.success("It's a match! 🎉", {
-              action: {
-                label: "View Matches",
-                onClick: () => navigate('/matches')
-              }
-            });
+    
+    recordSwipe(user.id, direction).then(isMatch => {
+      if (isMatch) {
+        toast.success("It's a match! 🎉", {
+          action: {
+            label: "View Matches",
+            onClick: () => navigate('/matches')
           }
-        }).catch(() => {
-          toast.error("Error recording swipe");
         });
       }
-    };
+    }).catch(() => {
+      toast.error("Error recording swipe");
+    });
     
-    swipeMutation.mutate({ userId: user.id, direction });
     setCurrentIndex(prevIndex => prevIndex + 1);
   };
 

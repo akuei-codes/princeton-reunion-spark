@@ -8,14 +8,14 @@ const LandingPage: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-black to-[#121212]">
+    <div className="min-h-screen flex flex-col">
       {/* Hero section */}
       <header className="container mx-auto px-4 py-8">
         <Logo />
       </header>
       
       <main className="flex-1 flex flex-col items-center justify-center px-4">
-        <div className="max-w-2xl w-full space-y-10 text-center">
+        <div className="max-w-2xl w-full space-y-10 text-center backdrop-blur-sm bg-black/30 p-8 rounded-2xl">
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">
             <span className="text-princeton-white">Find Your </span>
             <span className="text-princeton-orange">Tiger</span>
@@ -74,10 +74,10 @@ interface FeatureCardProps {
 const FeatureCard: React.FC<FeatureCardProps> = ({ title, description, highlighted }) => {
   return (
     <div 
-      className={`p-6 rounded-xl ${
+      className={`p-6 rounded-xl backdrop-blur-sm ${
         highlighted 
-          ? 'bg-gradient-to-br from-princeton-orange to-[#FF5E00] text-black' 
-          : 'bg-secondary text-white'
+          ? 'bg-gradient-to-br from-princeton-orange to-[#FF5E00]/90 text-black' 
+          : 'bg-secondary/70 text-white'
       }`}
     >
       <h3 className="text-xl font-bold mb-3">{title}</h3>

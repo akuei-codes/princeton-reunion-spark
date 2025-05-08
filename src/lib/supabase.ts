@@ -14,9 +14,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     headers: {
       'Content-Type': 'application/json',
       'Accept': '*/*',
+      'apikey': supabaseAnonKey,  // Add the API key explicitly to ensure authorization
     },
   },
-  // Add retry options for better reliability
   db: {
     schema: 'public',
   },
@@ -27,38 +27,85 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Simple helper function to check if a bucket exists and create if needed
-// This function is intentionally implemented inside this module to avoid circular dependencies
+// Helper function to check if a bucket exists and create if needed
+// Improved with more robust error handling
 export const ensureBucketExists = async (bucketName: string): Promise<boolean> => {
   try {
+    console.log(`Checking if bucket "${bucketName}" exists...`);
+    
     // First check if bucket exists
     const { data: buckets, error: listError } = await supabase.storage.listBuckets();
     
     if (listError) {
-      console.error('Error checking buckets:', listError);
+      console.error('Error listing buckets:', listError);
+      
+      // Check if this is an authorization error
+      if (listError.message?.includes('JWT') || listError.status === 401) {
+        console.error('Authorization error. User may not be logged in properly.');
+        return false;
+      }
+      
       return false;
     }
     
     const bucketExists = buckets.some(bucket => bucket.name === bucketName);
     
-    if (!bucketExists) {
-      console.log(`Creating bucket: ${bucketName}`);
-      // Create bucket with public access
-      const { error: createError } = await supabase.storage.createBucket(bucketName, {
-        public: true, 
-        fileSizeLimit: 5242880, // 5MB
-        allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
-      });
+    // If bucket already exists, return true - no need to create it
+    if (bucketExists) {
+      console.log(`Bucket "${bucketName}" already exists.`);
+      return true;
+    }
+    
+    console.log(`Creating bucket: "${bucketName}"...`);
+
+    // Create bucket with public access
+    const { data: createData, error: createError } = await supabase.storage.createBucket(bucketName, {
+      public: true, 
+      fileSizeLimit: 5242880, // 5MB
+      allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+    });
+    
+    if (createError) {
+      console.error('Error creating bucket:', createError);
       
-      if (createError) {
-        console.error('Error creating bucket:', createError);
+      // Special handling for RLS policy errors
+      if (createError.message?.includes('policy')) {
+        console.error('RLS Policy Error: You need to enable bucket creation in Supabase dashboard');
+        console.error('Please check your storage.buckets table policies in the Supabase dashboard');
+        alert('Unable to create storage bucket due to permissions. Please contact admin.');
         return false;
       }
+      
+      return false;
+    }
+    
+    console.log(`Successfully created bucket "${bucketName}".`);
+    return true;
+  } catch (error) {
+    console.error('Unexpected error ensuring bucket exists:', error);
+    return false;
+  }
+};
+
+// Helper function to check user table permissions
+export const checkUserTableAccess = async (): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.from('users').select('id').limit(1);
+    
+    if (error) {
+      console.error('Error accessing users table:', error);
+      
+      if (error.message?.includes('policy') || error.code === '42501') {
+        console.error('RLS Policy Error: You need to configure RLS policies for the users table');
+        return false;
+      }
+      
+      return false;
     }
     
     return true;
   } catch (error) {
-    console.error('Error ensuring bucket exists:', error);
+    console.error('Unexpected error checking user table access:', error);
     return false;
   }
 };

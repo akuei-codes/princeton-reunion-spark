@@ -1,4 +1,3 @@
-
 import { supabase } from './supabase';
 import { UserGender, GenderPreference, UserWithRelations } from '@/types/database';
 
@@ -294,6 +293,106 @@ export const deleteUserPhoto = async (photoUrl: string): Promise<void> => {
 };
 
 /**
+ * Records a user's swipe (like or pass)
+ */
+export const recordSwipe = async (
+  swipedUserId: string, 
+  direction: 'left' | 'right'
+): Promise<boolean> => {
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error("No authenticated user");
+    
+    const userId = userData.user.id;
+    const liked = direction === 'right';
+    
+    console.log(`Recording swipe: ${userId} swiped ${direction} on ${swipedUserId}`);
+    
+    // Get the database IDs from auth_ids
+    const { data: swiperData, error: swiperError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', userId)
+      .single();
+    
+    if (swiperError) {
+      console.error('Error getting swiper ID:', swiperError);
+      throw swiperError;
+    }
+    
+    const { data: swipedData, error: swipedError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', swipedUserId)
+      .single();
+    
+    if (swipedError) {
+      console.error('Error getting swiped ID:', swipedError);
+      throw swipedError;
+    }
+    
+    const swiperId = swiperData.id;
+    const swipedId = swipedData.id;
+    
+    // Record the swipe - using the correct column names from schema
+    const { error } = await supabase
+      .from('swipes')
+      .insert({
+        swiper_id: swiperId,
+        swiped_id: swipedId,
+        direction: liked ? 'right' : 'left',
+        created_at: new Date().toISOString()
+      });
+    
+    if (error) {
+      console.error('Error inserting swipe:', error);
+      throw error;
+    }
+    
+    // If liked, check if there's a mutual like (a match)
+    if (liked) {
+      const { data, error: matchError } = await supabase
+        .from('swipes')
+        .select('*')
+        .eq('swiper_id', swipedId)
+        .eq('swiped_id', swiperId)
+        .eq('direction', 'right')
+        .single();
+      
+      if (matchError && matchError.code !== 'PGRST116') {
+        console.error('Error checking for match:', matchError);
+        throw matchError;
+      }
+      
+      if (data) {
+        console.log('Found a match!');
+        // It's a match! Create a new chat
+        const { error: chatError } = await supabase
+          .from('matches')
+          .insert({
+            user_id_1: swiperId < swipedId ? swiperId : swipedId,
+            user_id_2: swiperId < swipedId ? swipedId : swiperId,
+            created_at: new Date().toISOString()
+          });
+        
+        if (chatError) {
+          console.error('Error creating match:', chatError);
+          throw chatError;
+        }
+        
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error recording swipe:', error);
+    // Return false instead of throwing to prevent UI disruption
+    return false;
+  }
+};
+
+/**
  * Gets potential matches for the user to swipe on
  */
 export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
@@ -304,14 +403,22 @@ export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
     const userId = userData.user.id;
     const limit = 20;
     
-    // Get the user's gender preference
-    const { data: currentUser, error: userError } = await supabase
+    // First get the user's database ID from auth_id
+    const { data: currentUserData, error: userIdError } = await supabase
       .from('users')
-      .select('gender_preference, gender')
+      .select('id, gender_preference, gender')
       .eq('auth_id', userId)
       .single();
     
-    if (userError) throw userError;
+    if (userIdError) {
+      console.error("Error getting user database ID:", userIdError);
+      throw userIdError;
+    }
+    
+    const dbUserId = currentUserData.id;
+    
+    // Get the user's gender preference
+    const currentUser = currentUserData;
     
     // Build query based on gender preference
     let query = supabase
@@ -332,18 +439,20 @@ export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
     }
     
     // Get users who haven't been swiped on yet
-    // Update column name from swiped_user_id to swiped_id based on schema
     const { data: swipedUserIds, error: swipeError } = await supabase
       .from('swipes')
       .select('swiped_id')
-      .eq('swiper_id', userId);
+      .eq('swiper_id', dbUserId);
     
-    if (swipeError) throw swipeError;
+    if (swipeError) {
+      console.error("Error getting swiped users:", swipeError);
+      throw swipeError;
+    }
     
     // If there are swiped users, exclude them from results
     if (swipedUserIds && swipedUserIds.length > 0) {
       const ids = swipedUserIds.map(s => s.swiped_id);
-      query = query.not('auth_id', 'in', `(${ids.join(',')})`);
+      query = query.not('id', 'in', `(${ids.join(',')})`);
     }
     
     const { data, error } = await query;
@@ -358,67 +467,6 @@ export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
 };
 
 /**
- * Records a user's swipe (like or pass)
- */
-export const recordSwipe = async (
-  swipedUserId: string, 
-  direction: 'left' | 'right'
-): Promise<boolean> => {
-  try {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw new Error("No authenticated user");
-    
-    const userId = userData.user.id;
-    const liked = direction === 'right';
-    
-    // Record the swipe - using the correct column names from schema
-    const { error } = await supabase
-      .from('swipes')
-      .insert({
-        swiper_id: userId,
-        swiped_id: swipedUserId,
-        direction: liked ? 'right' : 'left',
-        created_at: new Date().toISOString()
-      });
-    
-    if (error) throw error;
-    
-    // If liked, check if there's a mutual like (a match)
-    if (liked) {
-      const { data, error: matchError } = await supabase
-        .from('swipes')
-        .select('*')
-        .eq('swiper_id', swipedUserId)
-        .eq('swiped_id', userId)
-        .eq('direction', 'right')
-        .single();
-      
-      if (matchError && matchError.code !== 'PGRST116') throw matchError;
-      
-      if (data) {
-        // It's a match! Create a new chat
-        const { error: chatError } = await supabase
-          .from('matches')
-          .insert({
-            user_id_1: userId < swipedUserId ? userId : swipedUserId,
-            user_id_2: userId < swipedUserId ? swipedUserId : userId,
-            created_at: new Date().toISOString()
-          });
-        
-        if (chatError) throw chatError;
-        
-        return true;
-      }
-    }
-    
-    return false;
-  } catch (error) {
-    console.error('Error recording swipe:', error);
-    throw error;
-  }
-};
-
-/**
  * Gets a user's matches
  */
 export const getUserMatches = async (): Promise<any[]> => {
@@ -428,29 +476,54 @@ export const getUserMatches = async (): Promise<any[]> => {
     
     const userId = userData.user.id;
     
+    // First get the user's database ID from auth_id
+    const { data: userInfo, error: userIdError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', userId)
+      .single();
+    
+    if (userIdError) {
+      console.error("Error getting user database ID:", userIdError);
+      throw userIdError;
+    }
+    
+    const dbUserId = userInfo.id;
+    
     // Get matches where the user is either user_id_1 or user_id_2
     const { data, error } = await supabase
       .from('matches')
       .select(`
         *,
-        user1:user_id_1(auth_id, name, photo_urls),
-        user2:user_id_2(auth_id, name, photo_urls)
+        user1:user_id_1(id, auth_id, name, photo_urls),
+        user2:user_id_2(id, auth_id, name, photo_urls)
       `)
-      .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
+      .or(`user_id_1.eq.${dbUserId},user_id_2.eq.${dbUserId}`);
     
-    if (error) throw error;
+    if (error) {
+      console.error("Error getting matches:", error);
+      throw error;
+    }
     
     // Transform the data to get the matched user
     const matches = data.map(match => {
       // Determine which user in the match is the matched user (the other person)
-      const matchedUser = match.user1.auth_id === userId ? match.user2 : match.user1;
+      const matchedUser = match.user1.id === dbUserId ? match.user2 : match.user1;
+      
+      // Check for unread messages
+      let unread = false;
+      let lastMessage = null;
+      let lastMessageTime = match.updated_at || match.created_at;
       
       return {
         matchId: match.id,
         userId: matchedUser.auth_id,
         name: matchedUser.name,
         photoUrl: matchedUser.photo_urls ? matchedUser.photo_urls[0] : null,
-        lastActivity: match.updated_at || match.created_at
+        lastActivity: lastMessageTime,
+        unread: unread,
+        lastMessage: lastMessage,
+        lastMessageTime: new Date(lastMessageTime).toLocaleDateString()
       };
     });
     
@@ -565,4 +638,3 @@ export const getHotZones = async (): Promise<any[]> => {
     return [];
   }
 };
-

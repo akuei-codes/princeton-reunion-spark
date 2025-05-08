@@ -1,24 +1,35 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getUserMatches, markMessagesAsRead } from '../lib/api';
+import { toast } from 'sonner';
 
 const Matches: React.FC = () => {
   const navigate = useNavigate();
 
-  // Fetch matches data
-  const { data: matches, isLoading, error } = useQuery({
+  // Fetch matches data with better error handling
+  const { data: matches, isLoading, error, refetch } = useQuery({
     queryKey: ['matches'],
     queryFn: () => getUserMatches(),
+    onError: (error) => {
+      console.error("Error fetching matches:", error);
+      toast.error("Failed to load matches");
+    }
   });
 
   const handleMatchClick = async (matchId: string) => {
-    // Mark messages as read when clicking on a match
-    await markMessagesAsRead(matchId);
-    navigate(`/chat/${matchId}`);
+    try {
+      // Mark messages as read when clicking on a match
+      await markMessagesAsRead(matchId);
+      navigate(`/chat/${matchId}`);
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+      // Still navigate even if marking as read fails
+      navigate(`/chat/${matchId}`);
+    }
   };
 
   return (
@@ -46,7 +57,7 @@ const Matches: React.FC = () => {
           <div className="text-center py-10">
             <div className="text-red-500 mb-2">Failed to load matches</div>
             <button 
-              onClick={() => window.location.reload()}
+              onClick={() => refetch()}
               className="text-princeton-orange underline"
             >
               Try again

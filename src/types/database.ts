@@ -3,6 +3,10 @@ export type UserRole = 'current_student' | 'recent_grad' | 'class_of_2025' | 'al
 
 export type UserVibe = 'Looking to Party' | 'Looking to Catch Up' | 'Down to Roam' | 'Looking for a Hook-Up';
 
+export type UserGender = 'male' | 'female' | 'non-binary' | 'other';
+
+export type GenderPreference = 'male' | 'female' | 'everyone';
+
 export interface User {
   id: string;
   auth_id: string;
@@ -10,9 +14,14 @@ export interface User {
   class_year: string;
   role: UserRole;
   vibe?: UserVibe;
+  gender?: UserGender;
+  gender_preference?: GenderPreference;
   bio?: string;
   major?: string;
   location?: string;
+  building?: string;
+  latitude?: number;
+  longitude?: number;
   profile_complete: boolean;
   created_at: string;
   updated_at: string;
@@ -35,6 +44,13 @@ export interface Interest {
 export interface Club {
   id: string;
   name: string;
+}
+
+export interface CampusBuilding {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
 }
 
 export interface Swipe {

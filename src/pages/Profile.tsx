@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MessageCircle, X, Heart, Calendar, MapPin, Globe, GraduationCap } from 'lucide-react';
+import { ArrowLeft, MessageCircle, X, Heart, Calendar, MapPin, Globe, GraduationCap, Users } from 'lucide-react';
 import Logo from '../components/Logo';
 import { useQuery } from '@tanstack/react-query';
 import { getUserById, recordSwipe, checkIfMatched } from '../lib/api';
@@ -135,17 +135,28 @@ const Profile: React.FC = () => {
         </div>
       </div>
       
-      <main className="flex-1 container mx-auto px-4 py-6 mt-4">
+      <main className="flex-1 container mx-auto px-4 py-6 mt-4 pb-20">
         <div className="space-y-6">
           {/* User info */}
           <div>
             <h1 className="text-3xl font-bold text-princeton-white">
               {user.name}, <span className="text-princeton-orange">{user.class_year}</span>
             </h1>
-            <div className="flex items-center mt-1 text-sm text-princeton-white/70">
-              <MapPin size={14} className="mr-1" />
-              <span>{user.location || "Princeton Campus"}</span>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              {user.gender && (
+                <div className="inline-block px-2 py-1 bg-secondary/70 text-princeton-white/70 rounded-full text-xs">
+                  {user.gender.charAt(0).toUpperCase() + user.gender.slice(1)}
+                </div>
+              )}
+              
+              {user.location && (
+                <div className="flex items-center text-sm text-princeton-white/70">
+                  <MapPin size={14} className="mr-1" />
+                  <span>{user.location}</span>
+                </div>
+              )}
             </div>
+            
             {user.vibe && (
               <div className="mt-1 inline-block px-3 py-1 bg-princeton-orange/20 text-princeton-orange rounded-full text-sm">
                 {user.vibe}
@@ -175,7 +186,7 @@ const Profile: React.FC = () => {
               </div>
               {user.clubs && user.clubs.length > 0 && (
                 <div className="flex items-start text-princeton-white/80">
-                  <Globe size={18} className="mr-2 text-princeton-orange mt-1" />
+                  <Users size={18} className="mr-2 text-princeton-orange mt-1" />
                   <span>Member of {user.clubs.map(club => club.name).join(', ')}</span>
                 </div>
               )}

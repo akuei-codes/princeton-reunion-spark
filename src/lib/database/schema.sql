@@ -5,6 +5,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Create enum types
 CREATE TYPE user_role AS ENUM ('current_student', 'recent_grad', 'class_of_2025', 'alum');
 CREATE TYPE user_vibe AS ENUM ('Looking to Party', 'Looking to Catch Up', 'Down to Roam', 'Looking for a Hook-Up');
+CREATE TYPE user_gender AS ENUM ('male', 'female', 'non-binary', 'other');
+CREATE TYPE gender_preference AS ENUM ('male', 'female', 'everyone');
 
 -- Create users table
 CREATE TABLE users (
@@ -14,9 +16,14 @@ CREATE TABLE users (
   class_year TEXT NOT NULL,
   role user_role NOT NULL,
   vibe user_vibe,
+  gender user_gender,
+  gender_preference gender_preference DEFAULT 'everyone',
   bio TEXT,
   major TEXT,
   location TEXT,
+  building TEXT,
+  latitude FLOAT,
+  longitude FLOAT,
   profile_complete BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -221,8 +228,36 @@ CREATE POLICY messages_insert_policy ON messages
 INSERT INTO interests (name) VALUES 
   ('Journalism'), ('Art'), ('Film'), ('Dancing'),
   ('Finance'), ('Running'), ('Beer Pong'), ('Travel'),
-  ('Coding'), ('Music'), ('Coffee'), ('Hiking');
+  ('Coding'), ('Music'), ('Coffee'), ('Hiking'),
+  ('Reading'), ('Photography'), ('Gaming'), ('Cooking'),
+  ('Sports'), ('Politics'), ('Science'), ('Math'),
+  ('Theater');
 
 INSERT INTO clubs (name) VALUES
   ('Terrace'), ('Daily Princetonian'), ('Tower'), ('Investment Club'),
-  ('Quadrangle'), ('CS Club'), ('Tiger Inn'), ('Cannon Club');
+  ('Quadrangle'), ('CS Club'), ('Tiger Inn'), ('Cannon Club'),
+  ('Debate Club'), ('Drama Club'), ('Singing Club'), ('Robotics Team'),
+  ('Chess Club'), ('Orchestra'), ('Choir'), ('Dance Company'),
+  ('Princeton Review');
+
+-- Princeton campus buildings for location selection
+CREATE TABLE campus_buildings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT UNIQUE NOT NULL,
+  latitude FLOAT NOT NULL,
+  longitude FLOAT NOT NULL
+);
+
+-- Add some Princeton buildings with their coordinates
+INSERT INTO campus_buildings (name, latitude, longitude) VALUES
+  ('1901 Hall', 40.3461, -74.6551),
+  ('Brown Hall', 40.3458, -74.6545),
+  ('Frist Campus Center', 40.3470, -74.6548),
+  ('Princeton Stadium', 40.3479, -74.6507),
+  ('Lewis Library', 40.3458, -74.6529),
+  ('Nassau Hall', 40.3489, -74.6579),
+  ('Firestone Library', 40.3496, -74.6576),
+  ('Whitman College', 40.3432, -74.6565),
+  ('Forbes College', 40.3421, -74.6603),
+  ('Princeton University Chapel', 40.3483, -74.6551),
+  ('Friend Center', 40.3505, -74.6521);

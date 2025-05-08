@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
@@ -14,7 +13,6 @@ interface AuthContextType {
   loading: boolean;
   user: any | null;
   isProfileComplete: boolean;
-  // Add missing properties referenced in components
   profileComplete: boolean;
   setProfileComplete: (value: boolean) => void;
   signInWithGoogle: () => Promise<void>;
@@ -202,6 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Rename this function for consistency but keep implementation
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -313,7 +312,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loading, 
       user, 
       isProfileComplete,
-      // Add the missing properties
       profileComplete: isProfileComplete,
       setProfileComplete: setIsProfileComplete,
       signInWithGoogle,

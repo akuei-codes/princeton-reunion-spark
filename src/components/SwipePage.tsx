@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -97,19 +96,22 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
 
   // Render relationship intention
   const renderIntention = () => {
-    if (!user.intention) return null;
+    // Use optional chaining to safely access the intention property
+    // that might not exist in the UserWithRelations type
+    const intention = (user as any).intention;
+    if (!intention) return null;
     
     let icon = null;
     let text = "";
     
-    switch(user.intention) {
+    switch(intention) {
       case "casual":
         icon = <Moon size={14} className="mr-1" />;
-        text = "Let's Just See Where the Night Takes Us";
+        text = "🌙 Let's Just See Where the Night Takes Us";
         break;
       case "serious":
         icon = <Users size={14} className="mr-1" />;
-        text = "Looking for Something Deeper";
+        text = "💑 Looking for Something Deeper";
         break;
       default:
         return null;

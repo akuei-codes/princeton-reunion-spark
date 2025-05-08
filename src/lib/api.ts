@@ -649,3 +649,82 @@ export const getHotZones = async (): Promise<any[]> => {
     return [];
   }
 };
+
+/**
+ * Updates user settings
+ */
+export const updateUserSettings = async (
+  settings: {
+    notifications?: boolean;
+    messageNotifications?: boolean;
+    locationEnabled?: boolean;
+    showActive?: boolean;
+    darkMode?: boolean;
+    [key: string]: any;
+  }
+): Promise<void> => {
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error("No authenticated user");
+    
+    const userId = userData.user.id;
+    
+    // First get the current settings
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('settings')
+      .eq('auth_id', userId)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    // Merge with existing settings
+    const currentSettings = user?.settings || {};
+    const updatedSettings = { ...currentSettings, ...settings };
+    
+    // Update the settings in the database
+    const { error } = await supabase
+      .from('users')
+      .update({ settings: updatedSettings })
+      .eq('auth_id', userId);
+    
+    if (error) throw error;
+    
+    return;
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete user account
+ */
+export const deleteAccount = async (): Promise<void> => {
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error("No authenticated user");
+    
+    const userId = userData.user.id;
+    
+    // First delete user data from the users table
+    const { error: deleteUserError } = await supabase
+      .from('users')
+      .delete()
+      .eq('auth_id', userId);
+    
+    if (deleteUserError) throw deleteUserError;
+    
+    // Then delete the auth user
+    const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(
+      userId
+    );
+    
+    if (deleteAuthError) throw deleteAuthError;
+    
+    return;
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    throw error;
+  }
+};

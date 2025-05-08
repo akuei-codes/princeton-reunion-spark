@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Bell, Lock, Eye, HelpCircle, MessageCircle, MapPin, Flag, Moon, Heart, LogOut } from 'lucide-react';
@@ -13,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 const Settings: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth(); // Changed from logout to signOut
   const [notifications, setNotifications] = useState(true);
   const [messageNotifications, setMessageNotifications] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
@@ -67,7 +66,7 @@ const Settings: React.FC = () => {
   // Handle logout
   const handleLogout = async () => {
     try {
-      await logout();
+      await signOut(); // Changed from logout to signOut
       navigate('/');
       toast.success('Logged out successfully');
     } catch (error) {
@@ -81,7 +80,7 @@ const Settings: React.FC = () => {
     try {
       setIsLoading(true);
       await deleteAccount();
-      await logout();
+      await signOut(); // Changed from logout to signOut
       navigate('/');
       toast.success('Account deleted successfully');
     } catch (error) {

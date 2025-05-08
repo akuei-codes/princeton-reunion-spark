@@ -39,7 +39,7 @@ const App = () => (
             <Route path="/profile/:id" element={<Profile />} />
             <Route path="/profile" element={<UserProfile />} />
             <Route path="/settings" element={<Settings />} />
-            <Route path="/zones" element={<HotZones />} />
+            <Route path="/hot-zones" element={<HotZones />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

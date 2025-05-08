@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -58,12 +59,6 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
     }
   };
   
-  const handleButtonSwipe = (direction: 'left' | 'right') => {
-    setExitX(direction === 'right' ? 200 : -200);
-    onSwipe(direction);
-    swipeMutation.mutate({ userId: user.auth_id, direction });
-  };
-
   // Add ability to view profile when clicking on card
   const viewProfile = () => {
     navigate(`/profile/${user.auth_id}`);
@@ -101,63 +96,61 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
   };
 
   return (
-    <div className="h-full w-full relative">
-      <motion.div
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        onDragEnd={handleDrag}
-        style={{ x, rotate, opacity, scale }}
-        exit={{ x: exitX || 0 }}
-        transition={{ duration: 0.2 }}
-        className="absolute w-full h-full bg-secondary rounded-xl overflow-hidden"
-      >
-        <div className="relative h-full">
-          {/* Profile Image */}
-          <div onClick={viewProfile} className="cursor-pointer h-full w-full">
-            <img
-              src={user.photo_urls && user.photo_urls.length > 0 ? user.photo_urls[0] : '/placeholder.svg'}
-              alt={user.name}
-              className="w-full h-full object-cover"
-            />
-          
-            {/* Swipe Indicators */}
-            <motion.div 
-              className="absolute top-4 right-4 bg-green-500 p-2 rounded-full"
-              style={{ opacity: rightIndicatorOpacity }}
-            >
-              <Heart size={32} className="text-white" />
-            </motion.div>
-          
-            <motion.div 
-              className="absolute top-4 left-4 bg-red-500 p-2 rounded-full"
-              style={{ opacity: leftIndicatorOpacity }}
-            >
-              <X size={32} className="text-white" />
-            </motion.div>
-          </div>
-          
-          {/* Profile Info */}
+    <motion.div
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      onDragEnd={handleDrag}
+      style={{ x, rotate, opacity, scale }}
+      exit={{ x: exitX || 0 }}
+      transition={{ duration: 0.2 }}
+      className="absolute w-full h-full bg-secondary rounded-xl overflow-hidden"
+    >
+      <div className="relative h-full">
+        {/* Profile Image */}
+        <div onClick={viewProfile} className="cursor-pointer h-full w-full">
+          <img
+            src={user.photo_urls && user.photo_urls.length > 0 ? user.photo_urls[0] : '/placeholder.svg'}
+            alt={user.name}
+            className="w-full h-full object-cover"
+          />
+        
+          {/* Swipe Indicators */}
           <motion.div 
-            className="absolute bottom-0 w-full bg-gradient-to-t from-black to-transparent p-6"
-            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0))" }}
+            className="absolute top-4 right-4 bg-green-500 p-2 rounded-full"
+            style={{ opacity: rightIndicatorOpacity }}
           >
-            <h2 className="text-2xl font-bold text-white mb-0">{user.name}, {user.class_year}</h2>
-            {user.major && <p className="text-princeton-orange mb-1">{user.major}</p>}
-            {user.bio && <p className="text-white/80 line-clamp-3 mb-2">{user.bio}</p>}
-            
-            {renderInterests()}
-            
-            <Button 
-              variant="ghost" 
-              className="mt-2 px-2 py-1 text-xs text-white/90 hover:text-white"
-              onClick={viewProfile}
-            >
-              View Full Profile
-            </Button>
+            <Heart size={32} className="text-white" />
+          </motion.div>
+        
+          <motion.div 
+            className="absolute top-4 left-4 bg-red-500 p-2 rounded-full"
+            style={{ opacity: leftIndicatorOpacity }}
+          >
+            <X size={32} className="text-white" />
           </motion.div>
         </div>
-      </motion.div>
-    </div>
+        
+        {/* Profile Info */}
+        <motion.div 
+          className="absolute bottom-0 w-full bg-gradient-to-t from-black to-transparent p-6"
+          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0))" }}
+        >
+          <h2 className="text-2xl font-bold text-white mb-0">{user.name}, {user.class_year}</h2>
+          {user.major && <p className="text-princeton-orange mb-1">{user.major}</p>}
+          {user.bio && <p className="text-white/80 line-clamp-3 mb-2">{user.bio}</p>}
+          
+          {renderInterests()}
+          
+          <Button 
+            variant="ghost" 
+            className="mt-2 px-2 py-1 text-xs text-white/90 hover:text-white"
+            onClick={viewProfile}
+          >
+            View Full Profile
+          </Button>
+        </motion.div>
+      </div>
+    </motion.div>
   );
 };
 
@@ -177,7 +170,13 @@ const SwipePage: React.FC = () => {
   // Fetch potential matches
   const { data: potentialMatches, isLoading, isError } = useQuery({
     queryKey: ['potential-matches'],
-    queryFn: getPotentialMatches
+    queryFn: getPotentialMatches,
+    meta: {
+      onError: (error: Error) => {
+        console.error("Error fetching potential matches:", error);
+        toast.error("Failed to load matches");
+      }
+    }
   });
 
   const handleSwipe = () => {
@@ -190,20 +189,22 @@ const SwipePage: React.FC = () => {
     
     const user = potentialMatches[currentIndex];
     
-    recordSwipe(user.auth_id, direction).then(isMatch => {
-      if (isMatch) {
-        toast.success("It's a match! 🎉", {
-          action: {
-            label: "View Matches",
-            onClick: () => navigate('/matches')
-          }
-        });
-      }
-    }).catch(() => {
-      toast.error("Error recording swipe");
-    });
-    
-    setCurrentIndex(prevIndex => prevIndex + 1);
+    recordSwipe(user.auth_id, direction)
+      .then(isMatch => {
+        if (isMatch) {
+          toast.success("It's a match! 🎉", {
+            action: {
+              label: "View Matches",
+              onClick: () => navigate('/matches')
+            }
+          });
+        }
+        setCurrentIndex(prevIndex => prevIndex + 1);
+      })
+      .catch((error) => {
+        console.error("Error recording swipe:", error);
+        toast.error("Error recording swipe");
+      });
   };
 
   // Show empty state for loading
@@ -241,45 +242,44 @@ const SwipePage: React.FC = () => {
   const noMoreUsers = !potentialMatches || potentialMatches.length === 0 || currentIndex >= potentialMatches.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black to-[#121212] p-4">
-      <div className="container mx-auto max-w-md h-full flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-black to-[#121212] p-4 flex flex-col">
+      <div className="container mx-auto max-w-md flex-1 flex flex-col">
         <div className="mb-6">
           <ProfileCompletionNotification />
         </div>
         
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1 relative">
-            {!noMoreUsers ? (
-              <SwipeCard
-                user={potentialMatches[currentIndex]}
-                onSwipe={handleSwipe}
-              />
-            ) : (
-              <NoMoreUsers />
-            )}
-          </div>
+        <div className="flex-1 relative">
+          {!noMoreUsers ? (
+            <SwipeCard
+              user={potentialMatches[currentIndex]}
+              onSwipe={handleSwipe}
+            />
+          ) : (
+            <NoMoreUsers />
+          )}
+        </div>
+        
+        {/* Action buttons now positioned at the bottom of the screen */}
+        <div className="flex justify-center gap-6 mt-auto py-8">
+          <Button
+            variant="outline"
+            size="icon"
+            className="w-16 h-16 rounded-full border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+            onClick={() => handleButtonSwipe('left')}
+            disabled={noMoreUsers}
+          >
+            <X size={32} />
+          </Button>
           
-          <div className="flex justify-center gap-6 mt-6 mb-12">
-            <Button
-              variant="outline"
-              size="icon"
-              className="w-16 h-16 rounded-full border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
-              onClick={() => handleButtonSwipe('left')}
-              disabled={noMoreUsers}
-            >
-              <X size={32} />
-            </Button>
-            
-            <Button
-              variant="outline"
-              size="icon"
-              className="w-16 h-16 rounded-full border-2 border-green-500 text-green-500 hover:bg-green-500 hover:text-white transition-colors"
-              onClick={() => handleButtonSwipe('right')}
-              disabled={noMoreUsers}
-            >
-              <Heart size={32} />
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            className="w-16 h-16 rounded-full border-2 border-green-500 text-green-500 hover:bg-green-500 hover:text-white transition-colors"
+            onClick={() => handleButtonSwipe('right')}
+            disabled={noMoreUsers}
+          >
+            <Heart size={32} />
+          </Button>
         </div>
       </div>
     </div>

@@ -10,9 +10,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
   },
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': '*/*',
+  global: {
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': '*/*',
+    },
   },
 });
-

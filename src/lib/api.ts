@@ -73,19 +73,78 @@ export const updateUserProfile = async (profileData: Partial<User>): Promise<Use
   }
 };
 
-// Upload user photo - Updated with better error handling
+// Create storage bucket if it doesn't exist
+const ensureStorageBucketExists = async (bucketName: string): Promise<boolean> => {
+  try {
+    // Check if bucket exists
+    const { data: buckets, error: listError } = await supabase
+      .storage
+      .listBuckets();
+    
+    if (listError) {
+      console.error('Error checking buckets:', listError);
+      return false;
+    }
+    
+    const bucketExists = buckets.some(bucket => bucket.name === bucketName);
+    
+    if (!bucketExists) {
+      console.log(`Bucket ${bucketName} does not exist, creating it...`);
+      // Create bucket with public access
+      const { error: createError } = await supabase
+        .storage
+        .createBucket(bucketName, {
+          public: true,
+          fileSizeLimit: 5242880, // 5MB
+          allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif']
+        });
+      
+      if (createError) {
+        console.error('Error creating bucket:', createError);
+        return false;
+      }
+      
+      // Set bucket as public
+      const { error: updateError } = await supabase
+        .storage
+        .updateBucket(bucketName, {
+          public: true
+        });
+      
+      if (updateError) {
+        console.error('Error updating bucket visibility:', updateError);
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in ensureStorageBucketExists:', error);
+    return false;
+  }
+};
+
+// Upload user photo - Updated with better error handling and bucket creation
 export const uploadUserPhoto = async (file: File, position: number): Promise<UserPhoto | null> => {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser) return null;
 
+    // Ensure the bucket exists
+    const bucketName = 'user-photos';
+    const bucketExists = await ensureStorageBucketExists(bucketName);
+    
+    if (!bucketExists) {
+      throw new Error('Failed to ensure storage bucket exists');
+    }
+    
     // Upload to storage
     const fileExt = file.name.split('.').pop();
     const filePath = `${currentUser.id}/${Date.now()}.${fileExt}`;
 
     const { error: uploadError, data: uploadData } = await supabase
       .storage
-      .from('user-photos')
+      .from(bucketName)
       .upload(filePath, file, {
         upsert: true
       });
@@ -98,7 +157,7 @@ export const uploadUserPhoto = async (file: File, position: number): Promise<Use
     // Get public URL
     const { data: { publicUrl } } = supabase
       .storage
-      .from('user-photos')
+      .from(bucketName)
       .getPublicUrl(filePath);
 
     // Add to photos table

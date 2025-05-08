@@ -2,8 +2,8 @@
 // We're directly using the Cloudinary Upload Widget approach which works in browsers
 // instead of using the Node.js SDK which requires 'fs'
 
-// Changed preset to a default unsigned preset name - this matches Cloudinary's default convention
-const CLOUDINARY_PRESET = 'ml_default';
+// Updated to use the correct preset name and folder
+const CLOUDINARY_PRESET = 'unsigned_preset';
 const CLOUDINARY_CLOUD_NAME = 'dmm2mff5r';
 
 export const uploadToCloudinary = async (file: File): Promise<string> => {
@@ -20,7 +20,7 @@ export const uploadToCloudinary = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('file', base64data);
     formData.append('upload_preset', CLOUDINARY_PRESET);
-    formData.append('folder', 'tiger-app-profiles');
+    formData.append('folder', 'user-photos');
     
     console.log("Sending request to Cloudinary with preset:", CLOUDINARY_PRESET);
     

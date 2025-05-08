@@ -478,7 +478,15 @@ export const getUserMatches = async () => {
   const formattedMatches = await Promise.all(
     matches.map(async match => {
       // Determine which user is the other person in the match
-      const otherUser = match.user_id_1 === currentUser.id ? match.users2 : match.users1;
+      const otherUserData = match.user_id_1 === currentUser.id ? match.users2 : match.users1;
+      
+      // Make sure otherUserData is treated as a single object, not an array
+      const otherUser = {
+        id: otherUserData.id,
+        name: otherUserData.name,
+        class_year: otherUserData.class_year,
+        photo_urls: otherUserData.photo_urls
+      };
       
       // Get the last message
       const { data: lastMessage } = await supabase

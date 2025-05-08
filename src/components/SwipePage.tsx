@@ -70,6 +70,38 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
     navigate(`/profile/${user.id}`);
   };
 
+  // Render interests properly
+  const renderInterests = () => {
+    if (!user.interests || user.interests.length === 0) return null;
+    
+    // Convert interests to simple strings for display
+    const interestsToDisplay = user.interests.map((interest: any) => {
+      // Handle different potential interest formats
+      if (typeof interest === 'string') return interest;
+      if (interest?.name?.name) return interest.name.name;
+      if (interest?.name) return interest.name;
+      return '';
+    }).filter(Boolean).slice(0, 3);
+
+    const remainingCount = user.interests.length - interestsToDisplay.length;
+    
+    return (
+      <div className="flex flex-wrap gap-1">
+        {interestsToDisplay.map((interest: string, index: number) => (
+          <span key={index} className="px-2 py-0.5 bg-white/30 rounded-full text-xs text-white">
+            {interest}
+          </span>
+        ))}
+        
+        {remainingCount > 0 && (
+          <span className="px-2 py-0.5 rounded-full text-xs text-white">
+            +{remainingCount} more
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="h-full w-full relative">
       <motion.div
@@ -115,19 +147,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
             {user.major && <p className="text-princeton-orange mb-1">{user.major}</p>}
             {user.bio && <p className="text-white/80 line-clamp-3 mb-2">{user.bio}</p>}
             
-            <div className="flex flex-wrap gap-1">
-              {user.interests && user.interests.slice(0, 3).map((interest, index) => (
-                <span key={index} className="px-2 py-0.5 bg-white/30 rounded-full text-xs text-white">
-                  {interest.name}
-                </span>
-              ))}
-              
-              {user.interests && user.interests.length > 3 && (
-                <span className="px-2 py-0.5 rounded-full text-xs text-white">
-                  +{user.interests.length - 3} more
-                </span>
-              )}
-            </div>
+            {renderInterests()}
             
             <Button 
               variant="ghost" 
@@ -224,7 +244,7 @@ const SwipePage: React.FC = () => {
               variant="outline"
               size="icon"
               className="w-16 h-16 rounded-full border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
-              onClick={() => handleSwipe()}
+              onClick={() => handleButtonSwipe('left')}
               disabled={noMoreUsers}
             >
               <X size={32} />
@@ -234,7 +254,7 @@ const SwipePage: React.FC = () => {
               variant="outline"
               size="icon"
               className="w-16 h-16 rounded-full border-2 border-green-500 text-green-500 hover:bg-green-500 hover:text-white transition-colors"
-              onClick={() => handleSwipe()}
+              onClick={() => handleButtonSwipe('right')}
               disabled={noMoreUsers}
             >
               <Heart size={32} />

@@ -213,12 +213,12 @@ CREATE POLICY users_select_policy ON users
 -- Policy for users table - update own record
 CREATE POLICY users_update_policy ON users
   FOR UPDATE
-  USING (auth.uid() = auth_id); -- Only update own record
+  USING (auth_id = auth.uid()); -- Only update own record
 
 -- Policy for users table - insert own record
 CREATE POLICY users_insert_policy ON users
   FOR INSERT
-  WITH CHECK (auth.uid() = auth_id); -- Only insert own record
+  WITH CHECK (auth_id = auth.uid()); -- Only insert own record
 
 -- Policy for photos table
 CREATE POLICY photos_select_policy ON user_photos
@@ -311,7 +311,7 @@ FOR INSERT
 TO authenticated
 WITH CHECK (
   bucket_id = 'user-photos'
-  AND auth.uid()::text = (storage.foldername(name))::text
+  AND (storage.foldername(name))::text = auth.uid()::text
 );
 
 -- SELECT: Allow public read access to all photos
@@ -330,7 +330,7 @@ FOR UPDATE
 TO authenticated
 USING (
   bucket_id = 'user-photos'
-  AND auth.uid()::text = (storage.foldername(name))::text
+  AND (storage.foldername(name))::text = auth.uid()::text
 );
 
 -- DELETE: Allow users to delete only their own photos
@@ -340,5 +340,5 @@ FOR DELETE
 TO authenticated
 USING (
   bucket_id = 'user-photos'
-  AND auth.uid()::text = (storage.foldername(name))::text
+  AND (storage.foldername(name))::text = auth.uid()::text
 );

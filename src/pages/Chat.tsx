@@ -96,7 +96,7 @@ const Chat: React.FC = () => {
         
         <div className="flex items-center" onClick={() => navigate(`/profile/${match.id}`)}>
           <img 
-            src={match.photos[0]?.photo_url || '/placeholder.svg'}
+            src={(match.photo_urls && match.photo_urls.length > 0) ? match.photo_urls[0] : '/placeholder.svg'}
             alt={match.name}
             className="w-10 h-10 rounded-full object-cover"
           />
@@ -106,7 +106,7 @@ const Chat: React.FC = () => {
             </h3>
             <div className="flex items-center text-xs text-princeton-white/60">
               <MapPin size={12} className="mr-1" />
-              <span>{match.location || "Near Princeton"}</span>
+              <span>{match.building || "Near Princeton"}</span>
             </div>
           </div>
         </div>

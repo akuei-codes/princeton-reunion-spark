@@ -7,6 +7,7 @@ import { X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { getCurrentUser } from '@/lib/api';
+import { UserWithRelations } from '@/types/database';
 
 interface ProfileCompletionNotificationProps {
   className?: string;
@@ -20,7 +21,7 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
   const { profileComplete } = useAuth();
 
   // Get current user to check if profile is complete
-  const { data: currentUser } = useQuery({
+  const { data: currentUser } = useQuery<UserWithRelations | null>({
     queryKey: ['current-user'],
     queryFn: getCurrentUser,
     staleTime: 60000, // 1 minute

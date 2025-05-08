@@ -37,14 +37,16 @@ const UserProfile: React.FC = () => {
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['current-user'],
     queryFn: getCurrentUser,
-    onSuccess: (data) => {
-      if (data) {
-        setBio(data.bio || '');
-        setMajor(data.major || '');
-        setGender(data.gender || '');
-        setGenderPreference(data.gender_preference || 'everyone');
-        setSelectedInterests(data.interests.map(i => i.name));
-        setSelectedClubs(data.clubs.map(c => c.name));
+    meta: {
+      onSuccess: (data) => {
+        if (data) {
+          setBio(data.bio || '');
+          setMajor(data.major || '');
+          setGender(data.gender || '');
+          setGenderPreference(data.gender_preference || 'everyone');
+          setSelectedInterests(data.interests.map(i => i.name));
+          setSelectedClubs(data.clubs.map(c => c.name));
+        }
       }
     }
   });

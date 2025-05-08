@@ -42,6 +42,11 @@ const Chat: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Handle back navigation
+  const handleBack = () => {
+    navigate('/matches');
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newMessage.trim() === '' || !id) return;
@@ -88,13 +93,13 @@ const Chat: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-black to-[#121212]">
       <header className="container sticky top-0 z-10 mx-auto px-4 py-3 flex items-center bg-black border-b border-princeton-orange/20">
         <button 
-          onClick={() => navigate('/matches')}
+          onClick={handleBack}
           className="text-princeton-white hover:text-princeton-orange transition-colors mr-3"
         >
           <ArrowLeft size={22} />
         </button>
         
-        <div className="flex items-center" onClick={() => navigate(`/profile/${match.id}`)}>
+        <div className="flex items-center" onClick={() => navigate(`/profile/${match.auth_id}`)}>
           <img 
             src={(match.photo_urls && match.photo_urls.length > 0) ? match.photo_urls[0] : '/placeholder.svg'}
             alt={match.name}
@@ -113,7 +118,7 @@ const Chat: React.FC = () => {
         
         <div className="ml-auto">
           <button 
-            onClick={() => navigate(`/profile/${match.id}`)}
+            onClick={() => navigate(`/profile/${match.auth_id}`)}
             className="text-princeton-white/70 hover:text-princeton-orange"
           >
             <InfoIcon size={22} />
@@ -128,20 +133,20 @@ const Chat: React.FC = () => {
               <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
                 <Send size={32} className="text-princeton-orange" />
               </div>
-              <h3 className="text-xl font-bold text-princeton-white mb-2">Start the conversation</h3>
+              <h3 className="text-xl font-bold text-princeton-white mb-2">Oops, No Conversations Yet</h3>
               <p className="text-princeton-white/70">
-                Say hello to your new match!
+                Break the ice! Send the first message to your new match!
               </p>
             </div>
           ) : (
             messages.map((message) => (
               <div 
                 key={message.id}
-                className={`flex ${message.sender_id === match.id ? 'justify-start' : 'justify-end'}`}
+                className={`flex ${message.sender_id === match.auth_id ? 'justify-start' : 'justify-end'}`}
               >
                 <div 
                   className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-                    message.sender_id === match.id 
+                    message.sender_id === match.auth_id 
                       ? 'bg-secondary text-princeton-white' 
                       : 'bg-princeton-orange text-princeton-black'
                   }`}
@@ -149,7 +154,7 @@ const Chat: React.FC = () => {
                   <div className="text-sm">{message.message}</div>
                   <div 
                     className={`text-[10px] mt-1 ${
-                      message.sender_id === match.id
+                      message.sender_id === match.auth_id
                         ? 'text-princeton-white/60' 
                         : 'text-princeton-black/70'
                     }`}

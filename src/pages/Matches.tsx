@@ -6,6 +6,7 @@ import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getUserMatches, markMessagesAsRead } from '../lib/api';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 const Matches: React.FC = () => {
   const navigate = useNavigate();
@@ -107,10 +108,16 @@ const Matches: React.FC = () => {
                 <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
                   <MessageCircle size={32} className="text-princeton-orange" />
                 </div>
-                <h3 className="text-xl font-bold text-princeton-white mb-2">No matches yet</h3>
-                <p className="text-princeton-white/70">
-                  Start swiping to find your Tiger match!
+                <h3 className="text-xl font-bold text-princeton-white mb-2">No Tiger Matches Yet!</h3>
+                <p className="text-princeton-white/70 mb-6">
+                  Start swiping to find your perfect reunion connection!
                 </p>
+                <Button 
+                  onClick={() => navigate('/swipe')}
+                  className="bg-princeton-orange hover:bg-princeton-orange/90 text-black"
+                >
+                  Start Swiping
+                </Button>
               </div>
             )}
           </div>

@@ -17,6 +17,8 @@ import Settings from "./pages/Settings";
 import HotZones from "./pages/HotZones";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
+import Help from "./pages/Help";
+import Report from "./pages/Report";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +41,8 @@ const App = () => (
             <Route path="/profile/:id" element={<Profile />} />
             <Route path="/profile" element={<UserProfile />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/report" element={<Report />} />
             <Route path="/hot-zones" element={<HotZones />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

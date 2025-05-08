@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Heart, X } from 'lucide-react';
+import { Heart, X, Moon, Users } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getPotentialMatches, recordSwipe } from '@/lib/api';
@@ -79,7 +79,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
     const remainingCount = user.interests.length - interestsToDisplay.length;
     
     return (
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1 mb-2">
         {interestsToDisplay.map((interest: string, index: number) => (
           <span key={index} className="px-2 py-0.5 bg-white/30 rounded-full text-xs text-white">
             {interest}
@@ -91,6 +91,34 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
             +{remainingCount} more
           </span>
         )}
+      </div>
+    );
+  };
+
+  // Render relationship intention
+  const renderIntention = () => {
+    if (!user.intention) return null;
+    
+    let icon = null;
+    let text = "";
+    
+    switch(user.intention) {
+      case "casual":
+        icon = <Moon size={14} className="mr-1" />;
+        text = "Let's Just See Where the Night Takes Us";
+        break;
+      case "serious":
+        icon = <Users size={14} className="mr-1" />;
+        text = "Looking for Something Deeper";
+        break;
+      default:
+        return null;
+    }
+    
+    return (
+      <div className="flex items-center text-xs text-princeton-orange font-medium mb-2">
+        {icon}
+        <span>{text}</span>
       </div>
     );
   };
@@ -137,13 +165,16 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
         >
           <h2 className="text-2xl font-bold text-white mb-0">{user.name}, {user.class_year}</h2>
           {user.major && <p className="text-princeton-orange mb-1">{user.major}</p>}
+          
+          {renderIntention()}
+          
           {user.bio && <p className="text-white/80 line-clamp-3 mb-2">{user.bio}</p>}
           
           {renderInterests()}
           
           <Button 
             variant="ghost" 
-            className="mt-2 px-2 py-1 text-xs text-white/90 hover:text-white"
+            className="px-2 py-1 text-xs text-white/90 hover:text-white"
             onClick={viewProfile}
           >
             View Full Profile
@@ -259,7 +290,7 @@ const SwipePage: React.FC = () => {
           )}
         </div>
         
-        {/* Action buttons now positioned at the bottom of the screen */}
+        {/* Action buttons positioned at the bottom of the screen */}
         <div className="flex justify-center gap-6 mt-auto py-8">
           <Button
             variant="outline"

@@ -1,9 +1,12 @@
 
 import React from 'react';
-import UserProfile from '../pages/UserProfile';
+import { useParams } from 'react-router-dom';
+import UserProfile from './UserProfile';
 
 const Profile: React.FC = () => {
-  return <UserProfile />;
+  const { id } = useParams<{ id?: string }>();
+  
+  return <UserProfile userId={id} />;
 };
 
 export default Profile;

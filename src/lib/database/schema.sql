@@ -8,7 +8,7 @@ CREATE TYPE user_vibe AS ENUM ('Looking to Party', 'Looking to Catch Up', 'Down 
 
 -- Create users table
 CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT uuid_ossp(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   auth_id TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   class_year TEXT NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE users (
 
 -- Create user photos table
 CREATE TABLE user_photos (
-  id UUID PRIMARY KEY DEFAULT uuid_ossp(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   photo_url TEXT NOT NULL,
   position INTEGER NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE user_photos (
 
 -- Create user interests table
 CREATE TABLE interests (
-  id UUID PRIMARY KEY DEFAULT uuid_ossp(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT UNIQUE NOT NULL
 );
 
@@ -46,7 +46,7 @@ CREATE TABLE user_interests (
 
 -- Create clubs table
 CREATE TABLE clubs (
-  id UUID PRIMARY KEY DEFAULT uuid_ossp(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT UNIQUE NOT NULL
 );
 
@@ -59,7 +59,7 @@ CREATE TABLE user_clubs (
 
 -- Create swipes table to track user swipe activity
 CREATE TABLE swipes (
-  id UUID PRIMARY KEY DEFAULT uuid_ossp(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   swiper_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   swiped_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   direction TEXT NOT NULL CHECK (direction IN ('left', 'right')),
@@ -69,7 +69,7 @@ CREATE TABLE swipes (
 
 -- Create matches table derived from mutual right swipes
 CREATE TABLE matches (
-  id UUID PRIMARY KEY DEFAULT uuid_ossp(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id_1 UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   user_id_2 UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -79,7 +79,7 @@ CREATE TABLE matches (
 
 -- Create messages table for chat functionality
 CREATE TABLE messages (
-  id UUID PRIMARY KEY DEFAULT uuid_ossp(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   match_id UUID REFERENCES matches(id) ON DELETE CASCADE NOT NULL,
   sender_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   message TEXT NOT NULL,
@@ -89,7 +89,7 @@ CREATE TABLE messages (
 
 -- Create hot zones table
 CREATE TABLE hot_zones (
-  id UUID PRIMARY KEY DEFAULT uuid_ossp(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   image_url TEXT,
   distance TEXT,
@@ -100,7 +100,7 @@ CREATE TABLE hot_zones (
 
 -- Create events table for hot zone events
 CREATE TABLE hot_zone_events (
-  id UUID PRIMARY KEY DEFAULT uuid_ossp(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   hot_zone_id UUID REFERENCES hot_zones(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

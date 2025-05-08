@@ -16,6 +16,7 @@ export interface User {
   profile_complete: boolean;
   created_at: string;
   updated_at: string;
+  unread?: boolean; // Add this for UI display
 }
 
 export interface UserPhoto {
@@ -92,6 +93,7 @@ export interface MatchWithUserAndLastMessage {
     created_at: string;
     sender_id: string;
     read: boolean;
+    time?: string; // Add this for time display
   };
 }
 

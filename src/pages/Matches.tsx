@@ -78,7 +78,7 @@ const Matches: React.FC = () => {
                     <h3 className="font-bold text-princeton-white">
                       {match.other_user.name} <span className="text-princeton-white/60 font-normal">'{match.other_user.class_year.slice(-2)}</span>
                     </h3>
-                    <span className="text-xs text-princeton-white/60">{match.last_message ? match.last_message.time : '--'}</span>
+                    <span className="text-xs text-princeton-white/60">{match.last_message?.time || '--'}</span>
                   </div>
                   <p className={`text-sm ${match.other_user.unread ? 'text-princeton-white font-medium' : 'text-princeton-white/70'}`}>
                     {match.last_message ? match.last_message.message : 'Just matched!'}

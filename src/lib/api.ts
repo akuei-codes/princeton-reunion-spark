@@ -1,4 +1,3 @@
-
 import { supabase } from './supabase';
 import type { 
   User, UserPhoto, Interest, Club, Swipe, Match, Message,
@@ -595,34 +594,24 @@ export const getUserMatches = async (): Promise<MatchWithUserAndLastMessage[]> =
         message: messages[0].message,
         created_at: messages[0].created_at,
         sender_id: messages[0].sender_id,
-        read: messages[0].read
+        read: messages[0].read,
+        time: formatTimeSince(messages[0].created_at)  // Add formatted time here
       } : undefined;
+      
+      // Set unread flag on other_user for UI purposes
+      const hasUnreadMessage = lastMessage ? !lastMessage.read && lastMessage.sender_id !== currentUser.id : false;
+      otherUser.unread = hasUnreadMessage;
       
       return {
         id: match.id,
         created_at: match.created_at,
         other_user: otherUser,
-        last_message
+        last_message: lastMessage
       };
     }));
     
-    // Filter out null results and format for UI
-    return matchesWithDetails.filter(Boolean).map(match => {
-      if (!match) return null;
-      
-      return {
-        ...match,
-        other_user: {
-          ...match.other_user,
-          name: match.other_user.name,
-          classYear: match.other_user.class_year,
-          lastMessage: match.last_message?.message || 'Just matched!',
-          time: match.last_message ? formatTimeSince(match.last_message.created_at) : formatTimeSince(match.created_at),
-          photo: match.other_user.photos[0]?.photo_url || '',
-          unread: match.last_message ? !match.last_message.read && match.last_message.sender_id !== currentUser.id : false,
-        }
-      };
-    }).filter(Boolean) as MatchWithUserAndLastMessage[];
+    // Filter out null results and return
+    return matchesWithDetails.filter(Boolean) as MatchWithUserAndLastMessage[];
   } catch (error) {
     console.error('Error in getUserMatches:', error);
     return [];

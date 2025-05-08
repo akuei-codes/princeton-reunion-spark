@@ -59,9 +59,7 @@ const SignupPage: React.FC = () => {
     }
 
     try {
-      const { error } = await signInWithPhone(phone);
-      
-      if (error) throw error;
+      await signInWithPhone(phone);
       
       setOtpSent(true);
       toast({
@@ -90,9 +88,7 @@ const SignupPage: React.FC = () => {
     }
 
     try {
-      const { error } = await verifyOtp(phone, otp);
-      
-      if (error) throw error;
+      await verifyOtp(phone, otp);
       
       toast({
         title: "Success",

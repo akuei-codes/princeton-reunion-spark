@@ -332,16 +332,17 @@ export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
     }
     
     // Get users who haven't been swiped on yet
+    // Update column name from swiped_user_id to swiped_id based on schema
     const { data: swipedUserIds, error: swipeError } = await supabase
       .from('swipes')
-      .select('swiped_user_id')
-      .eq('user_id', userId);
+      .select('swiped_id')
+      .eq('swiper_id', userId);
     
     if (swipeError) throw swipeError;
     
     // If there are swiped users, exclude them from results
     if (swipedUserIds && swipedUserIds.length > 0) {
-      const ids = swipedUserIds.map(s => s.swiped_user_id);
+      const ids = swipedUserIds.map(s => s.swiped_id);
       query = query.not('auth_id', 'in', `(${ids.join(',')})`);
     }
     
@@ -370,13 +371,13 @@ export const recordSwipe = async (
     const userId = userData.user.id;
     const liked = direction === 'right';
     
-    // Record the swipe
+    // Record the swipe - using the correct column names from schema
     const { error } = await supabase
       .from('swipes')
       .insert({
-        user_id: userId,
-        swiped_user_id: swipedUserId,
-        liked,
+        swiper_id: userId,
+        swiped_id: swipedUserId,
+        direction: liked ? 'right' : 'left',
         created_at: new Date().toISOString()
       });
     
@@ -387,9 +388,9 @@ export const recordSwipe = async (
       const { data, error: matchError } = await supabase
         .from('swipes')
         .select('*')
-        .eq('user_id', swipedUserId)
-        .eq('swiped_user_id', userId)
-        .eq('liked', true)
+        .eq('swiper_id', swipedUserId)
+        .eq('swiped_id', userId)
+        .eq('direction', 'right')
         .single();
       
       if (matchError && matchError.code !== 'PGRST116') throw matchError;
@@ -397,10 +398,10 @@ export const recordSwipe = async (
       if (data) {
         // It's a match! Create a new chat
         const { error: chatError } = await supabase
-          .from('chats')
+          .from('matches')
           .insert({
-            user1_id: userId,
-            user2_id: swipedUserId,
+            user_id_1: userId < swipedUserId ? userId : swipedUserId,
+            user_id_2: userId < swipedUserId ? swipedUserId : userId,
             created_at: new Date().toISOString()
           });
         
@@ -427,29 +428,29 @@ export const getUserMatches = async (): Promise<any[]> => {
     
     const userId = userData.user.id;
     
-    // Get chats where the user is either user1 or user2
+    // Get matches where the user is either user_id_1 or user_id_2
     const { data, error } = await supabase
-      .from('chats')
+      .from('matches')
       .select(`
         *,
-        user1:user1_id(*),
-        user2:user2_id(*)
+        user1:user_id_1(auth_id, name, photo_urls),
+        user2:user_id_2(auth_id, name, photo_urls)
       `)
-      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
+      .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
     
     if (error) throw error;
     
     // Transform the data to get the matched user
-    const matches = data.map(chat => {
-      // Determine which user in the chat is the matched user
-      const matchedUser = chat.user1.auth_id === userId ? chat.user2 : chat.user1;
+    const matches = data.map(match => {
+      // Determine which user in the match is the matched user (the other person)
+      const matchedUser = match.user1.auth_id === userId ? match.user2 : match.user1;
       
       return {
-        chatId: chat.id,
+        matchId: match.id,
         userId: matchedUser.auth_id,
         name: matchedUser.name,
         photoUrl: matchedUser.photo_urls ? matchedUser.photo_urls[0] : null,
-        lastActivity: chat.updated_at || chat.created_at
+        lastActivity: match.updated_at || match.created_at
       };
     });
     
@@ -461,14 +462,14 @@ export const getUserMatches = async (): Promise<any[]> => {
 };
 
 /**
- * Gets messages for a specific chat
+ * Gets messages for a specific match
  */
-export const getMessages = async (chatId: string): Promise<any[]> => {
+export const getMessages = async (matchId: string): Promise<any[]> => {
   try {
     const { data, error } = await supabase
       .from('messages')
       .select('*')
-      .eq('chat_id', chatId)
+      .eq('match_id', matchId)
       .order('created_at', { ascending: true });
     
     if (error) throw error;
@@ -481,10 +482,10 @@ export const getMessages = async (chatId: string): Promise<any[]> => {
 };
 
 /**
- * Sends a message in a chat
+ * Sends a message in a match's conversation
  */
 export const sendMessage = async (
-  chatId: string, 
+  matchId: string, 
   content: string
 ): Promise<any> => {
   try {
@@ -497,9 +498,9 @@ export const sendMessage = async (
     const { data, error } = await supabase
       .from('messages')
       .insert({
-        chat_id: chatId,
+        match_id: matchId,
         sender_id: senderId,
-        content,
+        message: content, // Changed from content to message to match schema
         created_at: new Date().toISOString()
       })
       .select()
@@ -507,11 +508,11 @@ export const sendMessage = async (
     
     if (error) throw error;
     
-    // Update the chat's updated_at timestamp
+    // Update the match's updated_at timestamp
     const { error: updateError } = await supabase
-      .from('chats')
+      .from('matches')
       .update({ updated_at: new Date().toISOString() })
-      .eq('id', chatId);
+      .eq('id', matchId);
     
     if (updateError) throw updateError;
     
@@ -523,9 +524,9 @@ export const sendMessage = async (
 };
 
 /**
- * Marks all messages in a chat as read
+ * Marks all messages in a match as read
  */
-export const markMessagesAsRead = async (chatId: string): Promise<void> => {
+export const markMessagesAsRead = async (matchId: string): Promise<void> => {
   try {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error("No authenticated user");
@@ -535,7 +536,7 @@ export const markMessagesAsRead = async (chatId: string): Promise<void> => {
     const { error } = await supabase
       .from('messages')
       .update({ read: true })
-      .eq('chat_id', chatId)
+      .eq('match_id', matchId)
       .neq('sender_id', userId)
       .eq('read', false);
     

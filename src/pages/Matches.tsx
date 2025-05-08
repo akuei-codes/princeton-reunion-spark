@@ -58,17 +58,17 @@ const Matches: React.FC = () => {
           <div className="space-y-4">
             {matches && matches.length > 0 ? matches.map((match) => (
               <div 
-                key={match.id}
+                key={match.matchId}
                 className="flex items-center p-3 rounded-lg bg-secondary border border-princeton-orange/20 hover:border-princeton-orange/50 transition-all cursor-pointer"
-                onClick={() => handleMatchClick(match.id)}
+                onClick={() => handleMatchClick(match.matchId)}
               >
                 <div className="relative">
                   <img 
-                    src={match.other_user.photos[0]?.photo_url || '/placeholder.svg'}
-                    alt={match.other_user.name}
+                    src={match.photoUrl || '/placeholder.svg'}
+                    alt={match.name}
                     className="w-14 h-14 rounded-full object-cover"
                   />
-                  {match.other_user.unread && (
+                  {match.unread && (
                     <div className="absolute top-0 right-0 w-3 h-3 bg-princeton-orange rounded-full border border-black"></div>
                   )}
                 </div>
@@ -76,12 +76,12 @@ const Matches: React.FC = () => {
                 <div className="ml-4 flex-1">
                   <div className="flex justify-between">
                     <h3 className="font-bold text-princeton-white">
-                      {match.other_user.name} <span className="text-princeton-white/60 font-normal">'{match.other_user.class_year.slice(-2)}</span>
+                      {match.name}
                     </h3>
-                    <span className="text-xs text-princeton-white/60">{match.last_message?.time || '--'}</span>
+                    <span className="text-xs text-princeton-white/60">{match.lastMessageTime || '--'}</span>
                   </div>
-                  <p className={`text-sm ${match.other_user.unread ? 'text-princeton-white font-medium' : 'text-princeton-white/70'}`}>
-                    {match.last_message ? match.last_message.message : 'Just matched!'}
+                  <p className={`text-sm ${match.unread ? 'text-princeton-white font-medium' : 'text-princeton-white/70'}`}>
+                    {match.lastMessage || 'Just matched!'}
                   </p>
                 </div>
                 

@@ -474,6 +474,88 @@ export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
 };
 
 /**
+ * Gets users who have liked the current user but haven't been swiped on yet
+ */
+export const getUserLikers = async (): Promise<UserWithRelations[]> => {
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return [];
+    
+    const userId = userData.user.id;
+    
+    // First get the user's database ID from auth_id
+    const { data: userInfo, error: userIdError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', userId)
+      .maybeSingle(); // Use maybeSingle instead of single
+    
+    if (userIdError || !userInfo) {
+      console.error("Error getting user database ID:", userIdError || "User not found");
+      return [];
+    }
+    
+    const dbUserId = userInfo.id;
+    
+    // Get users who have swiped right on the current user
+    const { data: likersData, error: likersError } = await supabase
+      .from('swipes')
+      .select('swiper_id')
+      .eq('swiped_id', dbUserId)
+      .eq('direction', 'right');
+    
+    if (likersError) {
+      console.error("Error getting likers:", likersError);
+      return [];
+    }
+    
+    if (!likersData || likersData.length === 0) {
+      return [];
+    }
+    
+    // Get users who the current user hasn't swiped on yet
+    const { data: swipedData, error: swipedError } = await supabase
+      .from('swipes')
+      .select('swiped_id')
+      .eq('swiper_id', dbUserId);
+    
+    let swipedIds: number[] = [];
+    
+    if (!swipedError && swipedData) {
+      swipedIds = swipedData.map(item => item.swiped_id);
+    }
+    
+    // Get the user details for likers who haven't been swiped on yet
+    const likerIds = likersData.map(item => item.swiper_id)
+      .filter(id => !swipedIds.includes(id));
+    
+    if (likerIds.length === 0) {
+      return [];
+    }
+    
+    // Get user details for likers
+    const { data: likers, error: usersError } = await supabase
+      .from('users')
+      .select(`
+        *,
+        interests:user_interests(name:interests(*)),
+        clubs:user_clubs(name:clubs(*))
+      `)
+      .in('id', likerIds);
+    
+    if (usersError) {
+      console.error("Error getting liker details:", usersError);
+      return [];
+    }
+    
+    return likers as UserWithRelations[] || [];
+  } catch (error) {
+    console.error('Error getting user likers:', error);
+    return [];
+  }
+};
+
+/**
  * Gets a user's matches
  */
 export const getUserMatches = async (): Promise<any[]> => {

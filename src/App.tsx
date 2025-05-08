@@ -15,6 +15,7 @@ import Profile from "./pages/Profile";
 import UserProfile from "./pages/UserProfile";
 import Settings from "./pages/Settings";
 import HotZones from "./pages/HotZones";
+import Likers from "./pages/Likers";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Help from "./pages/Help";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/swipe" element={<SwipePage />} />
             <Route path="/matches" element={<Matches />} />
+            <Route path="/likers" element={<Likers />} />
             <Route path="/chat/:id" element={<Chat />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/profile/:id" element={<Profile />} />

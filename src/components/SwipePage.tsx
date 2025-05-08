@@ -1,13 +1,15 @@
+
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Heart, X, Moon, Users } from 'lucide-react';
+import { Heart, X, Moon, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getPotentialMatches, recordSwipe } from '@/lib/api';
 import { UserWithRelations } from '@/types/database';
 import ProfileCompletionNotification from './ProfileCompletionNotification';
 import { Button } from '@/components/ui/button';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 
 interface SwipeCardProps {
   user: UserWithRelations;
@@ -17,6 +19,7 @@ interface SwipeCardProps {
 const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
   const navigate = useNavigate();
   const [exitX, setExitX] = useState<number | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
   // Card dragging functionality
   const x = useMotionValue(0);
@@ -63,6 +66,9 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
     navigate(`/profile/${user.auth_id}`);
   };
 
+  // Calculate the total number of images
+  const totalImages = user.photo_urls?.length || 0;
+
   // Render interests properly
   const renderInterests = () => {
     if (!user.interests || user.interests.length === 0) return null;
@@ -97,11 +103,10 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
   // Render relationship intention
   const renderIntention = () => {
     // Use optional chaining to safely access the intention property
-    // that might not exist in the UserWithRelations type
-    const intention = (user as any).intention;
+    const intention = user.intention;
     if (!intention) return null;
     
-    let icon = null;
+    let icon;
     let text = "";
     
     switch(intention) {
@@ -136,34 +141,88 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
       className="absolute w-full h-full bg-secondary rounded-xl overflow-hidden"
     >
       <div className="relative h-full">
-        {/* Profile Image */}
-        <div onClick={viewProfile} className="cursor-pointer h-full w-full">
-          <img
-            src={user.photo_urls && user.photo_urls.length > 0 ? user.photo_urls[0] : '/placeholder.svg'}
-            alt={user.name}
-            className="w-full h-full object-cover"
-          />
-        
-          {/* Swipe Indicators */}
-          <motion.div 
-            className="absolute top-4 right-4 bg-green-500 p-2 rounded-full"
-            style={{ opacity: rightIndicatorOpacity }}
-          >
-            <Heart size={32} className="text-white" />
-          </motion.div>
-        
-          <motion.div 
-            className="absolute top-4 left-4 bg-red-500 p-2 rounded-full"
-            style={{ opacity: leftIndicatorOpacity }}
-          >
-            <X size={32} className="text-white" />
-          </motion.div>
+        {/* Profile Image Carousel */}
+        <div className="h-[70%] w-full relative">
+          {user.photo_urls && user.photo_urls.length > 0 ? (
+            <>
+              <img
+                src={user.photo_urls[currentImageIndex]}
+                alt={`${user.name}'s photo`}
+                className="w-full h-full object-cover"
+              />
+              
+              {/* Image Navigation */}
+              {totalImages > 1 && (
+                <>
+                  {/* Image Indicators */}
+                  <div className="absolute top-2 left-0 right-0 flex justify-center gap-1">
+                    {user.photo_urls.map((_, index) => (
+                      <div 
+                        key={index} 
+                        className={`h-1 rounded-full ${
+                          index === currentImageIndex 
+                            ? "w-6 bg-princeton-orange" 
+                            : "w-2 bg-white/50"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  
+                  {/* Previous Image Button */}
+                  {currentImageIndex > 0 && (
+                    <button 
+                      className="absolute top-1/2 left-2 -translate-y-1/2 bg-black/30 p-1 rounded-full"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(prev => prev - 1);
+                      }}
+                    >
+                      <ChevronLeft className="text-white" size={20} />
+                    </button>
+                  )}
+                  
+                  {/* Next Image Button */}
+                  {currentImageIndex < totalImages - 1 && (
+                    <button 
+                      className="absolute top-1/2 right-2 -translate-y-1/2 bg-black/30 p-1 rounded-full"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(prev => prev + 1);
+                      }}
+                    >
+                      <ChevronRight className="text-white" size={20} />
+                    </button>
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+            <div className="w-full h-full bg-gray-300 flex items-center justify-center">
+              <span className="text-gray-500">No photo available</span>
+            </div>
+          )}
         </div>
         
-        {/* Profile Info */}
+        {/* Swipe Indicators */}
         <motion.div 
-          className="absolute bottom-0 w-full bg-gradient-to-t from-black to-transparent p-6"
+          className="absolute top-4 right-4 bg-green-500 p-2 rounded-full"
+          style={{ opacity: rightIndicatorOpacity }}
+        >
+          <Heart size={32} className="text-white" />
+        </motion.div>
+      
+        <motion.div 
+          className="absolute top-4 left-4 bg-red-500 p-2 rounded-full"
+          style={{ opacity: leftIndicatorOpacity }}
+        >
+          <X size={32} className="text-white" />
+        </motion.div>
+        
+        {/* Profile Info */}
+        <div 
+          className="absolute bottom-0 w-full bg-gradient-to-t from-black to-transparent p-4"
           style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0))" }}
+          onClick={viewProfile}
         >
           <h2 className="text-2xl font-bold text-white mb-0">{user.name}, {user.class_year}</h2>
           {user.major && <p className="text-princeton-orange mb-1">{user.major}</p>}
@@ -181,7 +240,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
           >
             View Full Profile
           </Button>
-        </motion.div>
+        </div>
       </div>
     </motion.div>
   );
@@ -192,6 +251,13 @@ const NoMoreUsers = () => (
     <div className="mb-4 text-6xl">👀</div>
     <h2 className="text-2xl font-bold text-princeton-white mb-2">No more Tigers nearby</h2>
     <p className="text-princeton-white/70 mb-6">Check back later for new matches</p>
+    <Button 
+      variant="outline"
+      className="border-princeton-orange text-princeton-orange hover:bg-princeton-orange/10"
+      onClick={() => window.location.reload()}
+    >
+      Refresh
+    </Button>
   </div>
 );
 
@@ -240,6 +306,11 @@ const SwipePage: React.FC = () => {
       });
   };
 
+  // Navigate to likers page
+  const navigateToLikers = () => {
+    navigate('/likers');
+  };
+
   // Show empty state for loading
   if (isLoading) {
     return (
@@ -279,6 +350,17 @@ const SwipePage: React.FC = () => {
       <div className="container mx-auto max-w-md flex-1 flex flex-col">
         <div className="mb-6">
           <ProfileCompletionNotification />
+        </div>
+        
+        {/* Likers Button */}
+        <div className="flex justify-end mb-4">
+          <Button 
+            variant="outline" 
+            className="border-princeton-orange text-princeton-orange hover:bg-princeton-orange/10"
+            onClick={navigateToLikers}
+          >
+            See Who Likes You
+          </Button>
         </div>
         
         <div className="flex-1 relative">

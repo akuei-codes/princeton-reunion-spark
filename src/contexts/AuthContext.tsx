@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
@@ -38,7 +39,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (data.session) {
         console.log("Session found, loading user profile with ID:", data.session.user.id);
-        await loadUserProfile(data.session.user.id);
+        try {
+          // First ensure the user profile exists
+          await ensureUserProfile(data.session.user.id, data.session.user);
+          await loadUserProfile(data.session.user.id);
+        } catch (error) {
+          console.error("Error during initial profile load:", error);
+          setLoading(false);
+        }
       } else {
         console.log("No session found, skipping profile load");
         setLoading(false);
@@ -56,11 +64,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log("Auth state change with session, loading profile for:", session.user.id);
           
           if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-            // Check if user exists in database
-            await ensureUserProfile(session.user.id, session.user);
-            await loadUserProfile(session.user.id);
+            try {
+              // Check if user exists in database
+              await ensureUserProfile(session.user.id, session.user);
+              await loadUserProfile(session.user.id);
+            } catch (error) {
+              console.error("Error during auth state change:", error);
+              setLoading(false);
+            }
           } else {
-            await loadUserProfile(session.user.id);
+            try {
+              await loadUserProfile(session.user.id);
+            } catch (error) {
+              console.error("Error loading profile on auth state change:", error);
+              setLoading(false);
+            }
           }
         } else {
           console.log("Auth state change without session, clearing user data");
@@ -109,33 +127,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name = "New User";
         }
         
-        // Create the user profile - Remove the intention field since it's not in the schema yet
+        // Create the user profile with only fields that exist in the schema
         const { error: createError } = await supabase
           .from('users')
-          .insert([
-            {
-              auth_id: userId,
-              name,
-              class_year: 'Current Student',
-              bio: '',
-              major: '',
-              gender: 'other' as UserGender, 
-              gender_preference: 'everyone' as GenderPreference,
-              profile_complete: false,
-              // Remove intention field until schema is updated
-            }
-          ]);
+          .insert({
+            auth_id: userId,
+            name: name,
+            class_year: 'Current Student',
+            role: 'current_student', // Required field
+            bio: '',
+            major: '',
+            gender: 'other' as UserGender, 
+            gender_preference: 'everyone' as GenderPreference,
+            profile_complete: false
+          });
         
         if (createError) {
           console.error('Error creating new user profile:', createError);
           toast.error("Failed to create your profile. Please try again.");
+          throw createError; // Re-throw to handle upstream
         } else {
           console.log("Successfully created new user profile");
           toast.success("Welcome! Please complete your profile to get started.");
         }
       }
+      
+      return true;
     } catch (error) {
       console.error('Error in ensureUserProfile:', error);
+      throw error; // Re-throw for upstream handling
     }
   };
   
@@ -148,6 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       console.log("Loading user profile for auth_id:", userId);
+      // Use .single() carefully, or use maybeSingle() to avoid 406 errors
       const { data: userData, error } = await supabase
         .from('users')
         .select(`
@@ -156,7 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           clubs:user_clubs(name:clubs(*))
         `)
         .eq('auth_id', userId)
-        .single();
+        .maybeSingle(); // Using maybeSingle instead of single
       
       if (error) {
         console.error('Error loading user profile:', error);
@@ -184,6 +205,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         console.log("Profile complete status:", isComplete);
         setIsProfileComplete(isComplete);
+      } else {
+        // No error but also no data
+        console.log("No user profile data returned");
+        setUser(null);
+        setIsProfileComplete(false);
       }
     } catch (error) {
       console.error('Error in loadUserProfile:', error);

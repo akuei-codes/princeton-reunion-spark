@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://cxopipsilxpcoyhkpfbr.supabase.co';
@@ -88,25 +87,23 @@ export const ensureBucketExists = async (bucketName: string): Promise<boolean> =
   }
 };
 
-// Helper function to check user table permissions
+// Function to check if user has access to the users table
 export const checkUserTableAccess = async (): Promise<boolean> => {
   try {
-    const { data, error } = await supabase.from('users').select('id').limit(1);
+    // Try to query the users table
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .limit(1);
     
     if (error) {
-      console.error('Error accessing users table:', error);
-      
-      if (error.message?.includes('policy') || error.code === '42501') {
-        console.error('RLS Policy Error: You need to configure RLS policies for the users table');
-        return false;
-      }
-      
+      console.error('Error checking users table access:', error);
       return false;
     }
     
     return true;
   } catch (error) {
-    console.error('Unexpected error checking user table access:', error);
+    console.error('Error checking users table access:', error);
     return false;
   }
 };

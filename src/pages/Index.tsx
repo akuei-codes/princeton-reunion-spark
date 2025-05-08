@@ -50,7 +50,7 @@ const Index = () => {
   // If authenticated, redirect based on profile completion
   if (user) {
     // For users with auth but no profile in database yet, redirect to profile setup
-    if (!isProfileComplete && user) {
+    if (!isProfileComplete) {
       return <Navigate to="/profile-setup" replace />;
     }
     // For users with complete profiles, redirect to dashboard

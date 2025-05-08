@@ -7,9 +7,15 @@ import { UserGender, GenderPreference, UserWithRelations } from '@/types/databas
  */
 export const getCurrentUser = async (): Promise<UserWithRelations | null> => {
   try {
-    const { data: user } = await supabase.auth.getUser();
+    const { data: sessionData } = await supabase.auth.getSession();
     
-    if (!user.user) return null;
+    if (!sessionData?.session?.user) {
+      console.log("getCurrentUser: No authenticated user");
+      return null;
+    }
+    
+    const userId = sessionData.session.user.id;
+    console.log("getCurrentUser: Looking up user with auth_id:", userId);
     
     const { data, error } = await supabase
       .from('users')
@@ -18,10 +24,19 @@ export const getCurrentUser = async (): Promise<UserWithRelations | null> => {
         interests:user_interests(name:interests(*)),
         clubs:user_clubs(name:clubs(*))
       `)
-      .eq('auth_id', user.user.id)
+      .eq('auth_id', userId)
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error getting current user:', error);
+      
+      // If the error is that no rows were returned, return null instead of throwing
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      
+      throw error;
+    }
     
     return data as UserWithRelations;
   } catch (error) {
@@ -69,8 +84,11 @@ export const updateUserProfile = async (
   }
 ) => {
   try {
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) throw new Error("No authenticated user");
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData?.session?.user) throw new Error("No authenticated user");
+    
+    const userId = sessionData.session.user.id;
+    console.log("updateUserProfile: Updating profile for auth_id:", userId);
     
     // First update the basic profile fields
     const { error } = await supabase
@@ -80,9 +98,12 @@ export const updateUserProfile = async (
         updated_at: new Date().toISOString(),
         profile_complete: true
       })
-      .eq('auth_id', user.user.id);
+      .eq('auth_id', userId);
     
-    if (error) throw error;
+    if (error) {
+      console.error("Error updating user profile:", error);
+      throw error;
+    }
     
     return { success: true };
   } catch (error) {

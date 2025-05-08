@@ -38,8 +38,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(data.session);
       
       if (data.session) {
-        await loadUserProfile();
+        console.log("Session found, loading user profile with ID:", data.session.user.id);
+        await loadUserProfile(data.session.user.id);
       } else {
+        console.log("No session found, skipping profile load");
         setLoading(false);
       }
     }
@@ -48,13 +50,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log(`Auth state changed: ${event}`);
+        console.log(`Auth state changed: ${event}`, session?.user?.id);
         setSession(session);
         
-        if (session) {
-          await loadUserProfile();
+        if (session && session.user) {
+          console.log("Auth state change with session, loading profile for:", session.user.id);
+          await loadUserProfile(session.user.id);
         } else {
+          console.log("Auth state change without session, clearing user data");
           setUser(null);
+          setIsProfileComplete(false);
           setLoading(false);
         }
       }
@@ -67,8 +72,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
   
-  const loadUserProfile = async () => {
+  const loadUserProfile = async (userId: string) => {
+    if (!userId) {
+      console.error("Cannot load user profile: userId is undefined");
+      setLoading(false);
+      return;
+    }
+    
     try {
+      console.log("Loading user profile for auth_id:", userId);
       const { data: userData, error } = await supabase
         .from('users')
         .select(`
@@ -76,29 +88,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           interests:user_interests(name:interests(*)),
           clubs:user_clubs(name:clubs(*))
         `)
-        .eq('auth_id', session?.user.id)
+        .eq('auth_id', userId)
         .single();
       
       if (error) {
         console.error('Error loading user profile:', error);
-        throw error;
+        
+        // Special handling for "no rows returned" - this is expected for new users
+        if (error.code === 'PGRST116') {
+          console.log("No user profile found - likely a new user");
+          setUser(null);
+          setIsProfileComplete(false);
+        } else {
+          throw error;
+        }
+      } else if (userData) {
+        console.log("User profile loaded successfully:", userData.id);
+        setUser(userData);
+        
+        // Check if profile is complete
+        const isComplete = Boolean(
+          userData.bio && 
+          userData.major && 
+          userData.gender && 
+          userData.gender_preference &&
+          (userData.photo_urls && userData.photo_urls.length > 0)
+        );
+        
+        console.log("Profile complete status:", isComplete);
+        setIsProfileComplete(isComplete);
       }
-      
-      setUser(userData);
-      
-      // Check if profile is complete
-      const isComplete = Boolean(
-        userData.bio && 
-        userData.major && 
-        userData.gender && 
-        userData.gender_preference &&
-        (userData.photo_urls && userData.photo_urls.length > 0)
-      );
-      
-      setIsProfileComplete(isComplete);
-      setLoading(false);
     } catch (error) {
       console.error('Error in loadUserProfile:', error);
+    } finally {
       setLoading(false);
     }
   };
@@ -150,6 +172,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
       
       if (data.user) {
+        console.log("User signed up successfully, creating profile for:", data.user.id);
         // Create the user profile
         const { error: profileError } = await supabase
           .from('users')
@@ -162,6 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               major: '',
               gender: 'other' as UserGender, 
               gender_preference: 'everyone' as GenderPreference,
+              profile_complete: false,
             }
           ]);
         
@@ -170,7 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           throw profileError;
         }
         
-        navigate('/setup');
+        navigate('/profile-setup');
       }
     } catch (error: any) {
       console.error('Sign up error:', error.message);
@@ -180,6 +204,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setUser(null);
+    setIsProfileComplete(false);
     navigate('/');
   };
 
@@ -228,36 +254,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       if (error) throw error;
-      console.log('OTP verified successfully:', data);
+      console.log('OTP verified successfully for user:', data.user?.id);
       
       // If this is a new user, create a profile
-      if (data.user && !data.user.user_metadata.hasProfile) {
-        // Create a minimal user profile
-        const { error: profileError } = await supabase
+      if (data.user) {
+        // Check if profile already exists
+        const { data: existingProfile } = await supabase
           .from('users')
-          .insert([
-            {
-              auth_id: data.user.id,
-              name: data.user.phone || 'New User',
-              class_year: 'Current Student',
-              bio: '',
-              major: '',
-              gender: 'other' as UserGender, 
-              gender_preference: 'everyone' as GenderPreference,
-            }
-          ]);
-        
-        if (profileError) {
-          console.error('Error creating user profile:', profileError);
+          .select('id')
+          .eq('auth_id', data.user.id)
+          .single();
+          
+        if (!existingProfile) {
+          console.log("Creating new profile for phone auth user");
+          // Create a minimal user profile
+          const { error: profileError } = await supabase
+            .from('users')
+            .insert([
+              {
+                auth_id: data.user.id,
+                name: data.user.phone || 'New User',
+                class_year: 'Current Student',
+                bio: '',
+                major: '',
+                gender: 'other' as UserGender, 
+                gender_preference: 'everyone' as GenderPreference,
+                profile_complete: false,
+              }
+            ]);
+          
+          if (profileError) {
+            console.error('Error creating user profile:', profileError);
+          }
         }
       }
       
       // Navigate based on profile completion after successful verification
-      await loadUserProfile();
-      if (!isProfileComplete) {
-        navigate('/setup');
-      } else {
-        navigate('/swipe');
+      if (data.user) {
+        await loadUserProfile(data.user.id);
+        if (!isProfileComplete) {
+          navigate('/profile-setup');
+        } else {
+          navigate('/swipe');
+        }
       }
     } catch (error: any) {
       console.error('OTP verification error:', error.message);

@@ -21,11 +21,16 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
   const { isProfileComplete } = useAuth(); // Changed from profileComplete to isProfileComplete
 
   // Get current user to check if profile is complete
-  const { data: currentUser } = useQuery({
+  const { data: currentUser, isError } = useQuery({
     queryKey: ['current-user'],
-    queryFn: getCurrentUser
+    queryFn: getCurrentUser,
+    // Don't show an error if this fails - we'll fall back to the context value
+    meta: {
+      errorMessage: false
+    }
   });
 
+  // Use either the API response or the context value
   const profileComplete = isProfileComplete || (currentUser && currentUser.profile_complete);
 
   const handleDismiss = () => {

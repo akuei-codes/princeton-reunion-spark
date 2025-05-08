@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
@@ -346,35 +345,43 @@ const ProfileSetupPage: React.FC = () => {
         return;
       }
 
+      console.log("Creating profile for user ID:", session.user.id);
+      toast.info("Starting profile creation...");
+
       // Get the selected vibe label
       const vibeLabel = vibeOptions.find(v => v.id === selectedVibe)?.label;
 
       // Initialize photo uploads
       const photoUrls: string[] = [];
       
-      // Upload photos to Cloudinary first
-      const uploadPromises = photos.map(async (photo) => {
+      // Show upload progress toast
+      toast.loading("Uploading photos...");
+      
+      // Upload photos to Cloudinary with better error handling
+      for (const photo of photos) {
         try {
+          console.log("Uploading photo:", photo.file.name);
           const cloudinaryUrl = await uploadToCloudinary(photo.file);
-          photoUrls.push(cloudinaryUrl);
-          return { success: true };
+          if (cloudinaryUrl) {
+            photoUrls.push(cloudinaryUrl);
+            console.log("Photo uploaded successfully");
+          }
         } catch (err) {
           console.error('Error uploading to Cloudinary:', err);
-          return { success: false };
-        }
-      });
-      
-      // Wait for all photo uploads to complete
-      const uploadResults = await Promise.all(uploadPromises);
-      const successfulUploads = uploadResults.filter(result => result.success).length;
-      
-      if (successfulUploads < photos.length) {
-        toast.warning(`Only ${successfulUploads} of ${photos.length} photos were uploaded successfully.`);
-        if (successfulUploads === 0) {
-          toast.error('Failed to upload any photos. Please try again.');
-          return;
+          // Continue with other photos on failure
         }
       }
+      
+      if (photoUrls.length === 0) {
+        toast.error('Failed to upload any photos. Please try again.');
+        return;
+      } else if (photoUrls.length < photos.length) {
+        toast.warning(`Only ${photoUrls.length} of ${photos.length} photos were uploaded successfully.`);
+      } else {
+        toast.success(`All ${photoUrls.length} photos uploaded successfully.`);
+      }
+      
+      console.log("Creating/updating user profile with photo URLs:", photoUrls);
       
       // Create/update user profile with photo URLs
       const { data: userData, error: userError } = await supabase
@@ -408,102 +415,99 @@ const ProfileSetupPage: React.FC = () => {
         throw new Error('Failed to create user profile');
       }
       
-      // Get a fresh copy of the user ID to ensure consistency
-      const { data: freshUserData, error: idError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('auth_id', session.user.id)
-        .single();
-        
-      if (idError || !freshUserData) {
-        console.error('Error getting fresh user ID:', idError);
-        toast.error('Could not validate user. Please try again.');
-        return;
-      }
+      console.log("User profile created:", userData.id);
       
       // Process interests
+      console.log("Processing interests:", selectedInterests);
       for (const interest of selectedInterests) {
-        // Check if interest exists
-        let interestId = null;
-        const { data: existingInterest } = await supabase
-          .from('interests')
-          .select('id')
-          .eq('name', interest)
-          .maybeSingle();
-          
-        if (existingInterest) {
-          interestId = existingInterest.id;
-        } else {
-          // Create new interest
-          const { data: newInterest, error: newInterestError } = await supabase
+        try {
+          // Check if interest exists
+          let interestId = null;
+          const { data: existingInterest } = await supabase
             .from('interests')
-            .insert({ name: interest })
-            .select()
-            .single();
+            .select('id')
+            .eq('name', interest)
+            .maybeSingle();
             
-          if (newInterestError) {
-            console.error('Error creating interest:', newInterestError);
-            throw newInterestError;
+          if (existingInterest) {
+            interestId = existingInterest.id;
+          } else {
+            // Create new interest
+            const { data: newInterest, error: newInterestError } = await supabase
+              .from('interests')
+              .insert({ name: interest })
+              .select()
+              .single();
+              
+            if (newInterestError) {
+              console.error('Error creating interest:', newInterestError);
+              continue; // Skip this interest but continue with others
+            }
+            interestId = newInterest.id;
           }
-          interestId = newInterest.id;
-        }
-        
-        // Link interest to user with fresh user ID
-        const { error: linkError } = await supabase
-          .from('user_interests')
-          .insert({
-            user_id: freshUserData.id,
-            interest_id: interestId
-          });
           
-        if (linkError) {
-          console.error('Error linking interest to user:', linkError);
-          throw linkError;
+          // Link interest to user with user ID from the upsert response
+          const { error: linkError } = await supabase
+            .from('user_interests')
+            .insert({
+              user_id: userData.id, // Use the actual user ID from the database
+              interest_id: interestId
+            });
+            
+          if (linkError) {
+            console.error('Error linking interest to user:', linkError);
+          }
+        } catch (error) {
+          console.error(`Error processing interest "${interest}":`, error);
         }
       }
       
       // Process clubs
+      console.log("Processing clubs:", selectedClubs);
       for (const club of selectedClubs) {
-        // Check if club exists
-        let clubId = null;
-        const { data: existingClub } = await supabase
-          .from('clubs')
-          .select('id')
-          .eq('name', club)
-          .maybeSingle();
-          
-        if (existingClub) {
-          clubId = existingClub.id;
-        } else {
-          // Create new club
-          const { data: newClub, error: newClubError } = await supabase
+        try {
+          // Check if club exists
+          let clubId = null;
+          const { data: existingClub } = await supabase
             .from('clubs')
-            .insert({ name: club })
-            .select()
-            .single();
+            .select('id')
+            .eq('name', club)
+            .maybeSingle();
             
-          if (newClubError) {
-            console.error('Error creating club:', newClubError);
-            throw newClubError;
+          if (existingClub) {
+            clubId = existingClub.id;
+          } else {
+            // Create new club
+            const { data: newClub, error: newClubError } = await supabase
+              .from('clubs')
+              .insert({ name: club })
+              .select()
+              .single();
+              
+            if (newClubError) {
+              console.error('Error creating club:', newClubError);
+              continue; // Skip this club but continue with others
+            }
+            clubId = newClub.id;
           }
-          clubId = newClub.id;
-        }
-        
-        // Link club to user with fresh user ID
-        const { error: linkError } = await supabase
-          .from('user_clubs')
-          .insert({
-            user_id: freshUserData.id,
-            club_id: clubId
-          });
           
-        if (linkError) {
-          console.error('Error linking club to user:', linkError);
-          throw linkError;
+          // Link club to user with user ID from the upsert response
+          const { error: linkError } = await supabase
+            .from('user_clubs')
+            .insert({
+              user_id: userData.id, // Use the actual user ID from the database
+              club_id: clubId
+            });
+            
+          if (linkError) {
+            console.error('Error linking club to user:', linkError);
+          }
+        } catch (error) {
+          console.error(`Error processing club "${club}":`, error);
         }
       }
       
-      // Mark profile as complete
+      // Mark profile as complete in the context
       setProfileComplete(true);
       
       toast.success("Profile completed successfully!");

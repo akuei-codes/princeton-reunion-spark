@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Heart, X } from 'lucide-react';
@@ -65,6 +65,11 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
     swipeMutation.mutate({ userId: user.id, direction });
   };
 
+  // Add ability to view profile when clicking on card
+  const viewProfile = () => {
+    navigate(`/profile/${user.id}`);
+  };
+
   return (
     <div className="h-full w-full relative">
       <motion.div
@@ -78,26 +83,28 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
       >
         <div className="relative h-full">
           {/* Profile Image */}
-          <img
-            src={user.photos && user.photos.length > 0 ? user.photos[0].photo_url : '/placeholder.svg'}
-            alt={user.name}
-            className="w-full h-full object-cover"
-          />
+          <div onClick={viewProfile} className="cursor-pointer h-full w-full">
+            <img
+              src={user.photos && user.photos.length > 0 ? user.photos[0].photo_url : '/placeholder.svg'}
+              alt={user.name}
+              className="w-full h-full object-cover"
+            />
           
-          {/* Swipe Indicators */}
-          <motion.div 
-            className="absolute top-4 right-4 bg-green-500 p-2 rounded-full"
-            style={{ opacity: rightIndicatorOpacity }}
-          >
-            <Heart size={32} className="text-white" />
-          </motion.div>
+            {/* Swipe Indicators */}
+            <motion.div 
+              className="absolute top-4 right-4 bg-green-500 p-2 rounded-full"
+              style={{ opacity: rightIndicatorOpacity }}
+            >
+              <Heart size={32} className="text-white" />
+            </motion.div>
           
-          <motion.div 
-            className="absolute top-4 left-4 bg-red-500 p-2 rounded-full"
-            style={{ opacity: leftIndicatorOpacity }}
-          >
-            <X size={32} className="text-white" />
-          </motion.div>
+            <motion.div 
+              className="absolute top-4 left-4 bg-red-500 p-2 rounded-full"
+              style={{ opacity: leftIndicatorOpacity }}
+            >
+              <X size={32} className="text-white" />
+            </motion.div>
+          </div>
           
           {/* Profile Info */}
           <motion.div 
@@ -121,6 +128,14 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
                 </span>
               )}
             </div>
+            
+            <Button 
+              variant="ghost" 
+              className="mt-2 px-2 py-1 text-xs text-white/90 hover:text-white"
+              onClick={viewProfile}
+            >
+              View Full Profile
+            </Button>
           </motion.div>
         </div>
       </motion.div>

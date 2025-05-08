@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Camera, LogOut, Settings, Edit, MapPin, 
@@ -57,18 +58,20 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
             .single();
           return data;
         }
-      : getCurrentUser,
-    onSuccess: (data) => {
-      if (data && !isViewingOthersProfile) {
-        setBio(data.bio || '');
-        setMajor(data.major || '');
-        setGender(data.gender || '');
-        setGenderPreference(data.gender_preference || 'everyone');
-        setSelectedInterests(data.interests.map(i => i.name));
-        setSelectedClubs(data.clubs.map(c => c.name));
-      }
-    }
+      : getCurrentUser
   });
+
+  // Update state when user data is loaded
+  useEffect(() => {
+    if (user && !isViewingOthersProfile) {
+      setBio(user.bio || '');
+      setMajor(user.major || '');
+      setGender(user.gender || '');
+      setGenderPreference(user.gender_preference || 'everyone');
+      setSelectedInterests(user.interests.map(i => i.name));
+      setSelectedClubs(user.clubs.map(c => c.name));
+    }
+  }, [user, isViewingOthersProfile]);
 
   // Fetch available interests and clubs
   const { data: interestsClubs } = useQuery({

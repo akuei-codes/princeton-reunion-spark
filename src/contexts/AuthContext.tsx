@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
@@ -182,17 +183,86 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate('/');
   };
 
-  // Create implementations for the auth methods
+  // Implement Google authentication
   const signInWithGoogle = async (): Promise<void> => {
-    console.warn("signInWithGoogle is not implemented");
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        }
+      });
+      
+      if (error) {
+        console.error('Google sign in error:', error);
+        throw error;
+      }
+      
+      console.log('Google authentication initiated:', data);
+    } catch (error: any) {
+      console.error('Failed to sign in with Google:', error.message);
+      throw error;
+    }
   };
 
   const signInWithPhone = async (phoneNumber: string): Promise<void> => {
-    console.warn("signInWithPhone is not implemented", phoneNumber);
+    try {
+      const { data, error } = await supabase.auth.signInWithOtp({
+        phone: phoneNumber,
+      });
+      
+      if (error) throw error;
+      console.log('Phone OTP sent:', data);
+    } catch (error: any) {
+      console.error('Phone sign in error:', error.message);
+      throw error;
+    }
   };
 
   const verifyOtp = async (phoneNumber: string, otp: string): Promise<void> => {
-    console.warn("verifyOtp is not implemented", phoneNumber, otp);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: phoneNumber,
+        token: otp,
+        type: 'sms',
+      });
+      
+      if (error) throw error;
+      console.log('OTP verified successfully:', data);
+      
+      // If this is a new user, create a profile
+      if (data.user && !data.user.user_metadata.hasProfile) {
+        // Create a minimal user profile
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert([
+            {
+              auth_id: data.user.id,
+              name: data.user.phone || 'New User',
+              class_year: 'Current Student',
+              bio: '',
+              major: '',
+              gender: 'other' as UserGender, 
+              gender_preference: 'everyone' as GenderPreference,
+            }
+          ]);
+        
+        if (profileError) {
+          console.error('Error creating user profile:', profileError);
+        }
+      }
+      
+      // Navigate based on profile completion after successful verification
+      await loadUserProfile();
+      if (!isProfileComplete) {
+        navigate('/setup');
+      } else {
+        navigate('/swipe');
+      }
+    } catch (error: any) {
+      console.error('OTP verification error:', error.message);
+      throw error;
+    }
   };
 
   return (

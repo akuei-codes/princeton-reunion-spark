@@ -1,4 +1,3 @@
-
 -- Enable the necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -7,6 +6,7 @@ CREATE TYPE user_role AS ENUM ('current_student', 'recent_grad', 'class_of_2025'
 CREATE TYPE user_vibe AS ENUM ('Looking to Party', 'Looking to Catch Up', 'Down to Roam', 'Looking for a Hook-Up');
 CREATE TYPE user_gender AS ENUM ('male', 'female', 'non-binary', 'other');
 CREATE TYPE gender_preference AS ENUM ('male', 'female', 'everyone');
+CREATE TYPE user_intention AS ENUM ('casual', 'serious'); -- Added intention enum
 
 -- Create users table with photo_urls array
 CREATE TABLE users (
@@ -26,6 +26,7 @@ CREATE TABLE users (
   longitude FLOAT,
   photo_urls TEXT[] DEFAULT '{}', -- Store Cloudinary URLs as an array
   profile_complete BOOLEAN DEFAULT FALSE,
+  intention user_intention DEFAULT 'casual', -- Added intention column
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

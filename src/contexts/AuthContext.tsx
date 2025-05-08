@@ -109,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name = "New User";
         }
         
-        // Create the user profile
+        // Create the user profile - Remove the intention field since it's not in the schema yet
         const { error: createError } = await supabase
           .from('users')
           .insert([
@@ -122,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               gender: 'other' as UserGender, 
               gender_preference: 'everyone' as GenderPreference,
               profile_complete: false,
-              intention: 'casual', // Default intention
+              // Remove intention field until schema is updated
             }
           ]);
         

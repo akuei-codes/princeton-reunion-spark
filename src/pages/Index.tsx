@@ -1,12 +1,17 @@
 import { Navigate } from 'react-router-dom';
 import LandingPage from '../components/LandingPage';
-
-// In a real app, we would check if the user is authenticated
-const isAuthenticated = false; // For demo purposes
+import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
+  const { user, loading } = useAuth();
+  
+  // Show loading state while checking auth
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  
   // If authenticated, redirect to the swipe page
-  if (isAuthenticated) {
+  if (user) {
     return <Navigate to="/swipe" replace />;
   }
   

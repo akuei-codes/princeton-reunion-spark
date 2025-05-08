@@ -7,7 +7,6 @@ import { X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { getCurrentUser } from '@/lib/api';
-import { UserWithRelations } from '@/types/database';
 
 interface ProfileCompletionNotificationProps {
   className?: string;
@@ -35,6 +34,23 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
 
   // Use either the API response or the context value
   const profileComplete = isProfileComplete || (currentUser && currentUser.profile_complete);
+  
+  // Calculate profile completion percentage based on required fields
+  const getCompletionPercentage = () => {
+    if (!currentUser) return 0;
+    
+    let completedFields = 0;
+    let totalFields = 6; // Total number of important profile fields
+    
+    if (currentUser.photo_urls && currentUser.photo_urls.length > 0) completedFields++;
+    if (currentUser.bio) completedFields++;
+    if (currentUser.major) completedFields++;
+    if (currentUser.gender) completedFields++;
+    if (currentUser.gender_preference) completedFields++;
+    if (currentUser.interests && currentUser.interests.length > 0) completedFields++;
+    
+    return Math.round((completedFields / totalFields) * 100);
+  };
 
   // Don't show if not logged in
   if (!user) {
@@ -57,6 +73,11 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
     return null;
   }
 
+  const completionPercentage = currentUser ? getCompletionPercentage() : 0;
+  const completionText = completionPercentage > 0 
+    ? `Continue where you left off (${completionPercentage}% complete)` 
+    : "Complete Profile";
+
   return (
     <div className={`bg-gradient-to-r from-orange-500 to-amber-600 p-4 rounded-lg shadow-lg animate-fade-in mb-6 ${className}`}>
       <div className="flex items-start">
@@ -65,11 +86,21 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
           <p className="text-black/80 mb-3">
             Add photos and details to your profile to start matching with other Tigers.
           </p>
+          
+          {completionPercentage > 0 && (
+            <div className="w-full bg-black/20 rounded-full h-2.5 mb-3">
+              <div 
+                className="bg-black h-2.5 rounded-full" 
+                style={{ width: `${completionPercentage}%` }}
+              ></div>
+            </div>
+          )}
+          
           <Button 
             onClick={handleCompleteProfile}
             className="bg-black text-white hover:bg-gray-900"
           >
-            Complete Profile
+            {completionText}
           </Button>
         </div>
         <button 

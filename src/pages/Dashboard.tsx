@@ -8,10 +8,28 @@ import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { useQuery } from '@tanstack/react-query';
+import { getUserLikers } from '@/lib/api';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  // Fetch likers count
+  const { data: likers } = useQuery({
+    queryKey: ['likers'],
+    queryFn: getUserLikers,
+    // Don't retry on errors since we expect errors for new users
+    retry: false,
+    // Only fetch if user is logged in
+    enabled: !!user,
+    // Don't show an error if this fails
+    meta: {
+      errorMessage: false
+    }
+  });
+  
+  const likersCount = likers?.length || 0;
 
   const features = [
     {
@@ -67,6 +85,29 @@ const Dashboard: React.FC = () => {
               What would you like to do today?
             </p>
           </div>
+          
+          {/* See Who Likes You Button */}
+          {likersCount > 0 && (
+            <div className="w-full max-w-4xl mb-6">
+              <Button 
+                onClick={() => navigate('/likers')}
+                className="w-full bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white py-4 rounded-lg shadow-lg transform transition-all duration-300 hover:scale-[1.02] group relative overflow-hidden"
+              >
+                <div className="absolute inset-0 flex items-center justify-start pl-6">
+                  <Heart size={28} className="text-white animate-pulse" />
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-xl font-semibold">See Who Likes You</span>
+                  <span className="inline-flex items-center justify-center w-8 h-8 bg-white/30 rounded-full text-white font-bold">
+                    {likersCount}
+                  </span>
+                </div>
+                <div className="absolute right-6 top-1/2 transform -translate-y-1/2 opacity-70 group-hover:right-4 transition-all duration-300">
+                  <Heart size={28} className="text-white fill-white" />
+                </div>
+              </Button>
+            </div>
+          )}
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mb-8">
             {features.map((feature) => (
@@ -132,13 +173,26 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
           
-          <Button 
-            onClick={() => navigate('/profile')}
-            variant="outline"
-            className="border-princeton-orange/60 text-princeton-orange hover:bg-princeton-orange/10"
-          >
-            Edit Your Profile
-          </Button>
+          <div className="flex gap-4">
+            <Button 
+              onClick={() => navigate('/profile')}
+              variant="outline"
+              className="border-princeton-orange/60 text-princeton-orange hover:bg-princeton-orange/10"
+            >
+              Edit Your Profile
+            </Button>
+
+            {likersCount > 0 && (
+              <Button 
+                onClick={() => navigate('/likers')}
+                variant="outline"
+                className="border-purple-500 text-purple-400 hover:bg-purple-500/10 flex items-center gap-2"
+              >
+                <Heart size={16} className="text-purple-400" />
+                <span>{likersCount} {likersCount === 1 ? 'Tiger' : 'Tigers'} like you</span>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </AppLayout>

@@ -72,7 +72,6 @@ export const ensureBucketExists = async (bucketName: string): Promise<boolean> =
       if (createError.message?.includes('policy')) {
         console.error('RLS Policy Error: You need to enable bucket creation in Supabase dashboard');
         console.error('Please check your storage.buckets table policies in the Supabase dashboard');
-        alert('Unable to create storage bucket due to permissions. Please contact admin.');
         return false;
       }
       
@@ -90,11 +89,17 @@ export const ensureBucketExists = async (bucketName: string): Promise<boolean> =
 // Function to check if user has access to the users table
 export const checkUserTableAccess = async (): Promise<boolean> => {
   try {
-    // Try to query the users table
+    // Try to query the users table with a 5 second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
     const { data, error } = await supabase
       .from('users')
       .select('id')
-      .limit(1);
+      .limit(1)
+      .abortSignal(controller.signal);
+    
+    clearTimeout(timeoutId);
     
     if (error) {
       console.error('Error checking users table access:', error);
@@ -104,6 +109,12 @@ export const checkUserTableAccess = async (): Promise<boolean> => {
     return true;
   } catch (error) {
     console.error('Error checking users table access:', error);
+    
+    // If it was aborted due to timeout, log a specific message
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('Database request timed out. This might indicate connectivity issues or RLS policy problems.');
+    }
+    
     return false;
   }
 };

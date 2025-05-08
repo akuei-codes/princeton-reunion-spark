@@ -16,6 +16,7 @@ interface AuthContextType {
   user: any | null;
   isProfileComplete: boolean;
   profileComplete: boolean;
+  error: Error | null;
   setProfileComplete: (value: boolean) => void;
   signInWithGoogle: () => Promise<void>;
   signInWithPhone: (phoneNumber: string) => Promise<void>;
@@ -29,26 +30,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any | null>(null);
   const [isProfileComplete, setIsProfileComplete] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   const navigate = useNavigate();
+
+  // Function to reset errors
+  const resetError = () => {
+    if (error) setError(null);
+  };
 
   useEffect(() => {
     async function loadSession() {
       setLoading(true);
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
+      resetError();
       
-      if (data.session) {
-        console.log("Session found, loading user profile with ID:", data.session.user.id);
-        try {
-          // First ensure the user profile exists
-          await ensureUserProfile(data.session.user.id, data.session.user);
-          await loadUserProfile(data.session.user.id);
-        } catch (error) {
-          console.error("Error during initial profile load:", error);
+      try {
+        const { data } = await supabase.auth.getSession();
+        setSession(data.session);
+        
+        if (data.session) {
+          console.log("Session found, loading user profile with ID:", data.session.user.id);
+          try {
+            // First ensure the user profile exists
+            await ensureUserProfile(data.session.user.id, data.session.user);
+            await loadUserProfile(data.session.user.id);
+          } catch (error) {
+            console.error("Error during initial profile load:", error);
+            setError(error instanceof Error ? error : new Error("Failed to load profile"));
+            setLoading(false);
+          }
+        } else {
+          console.log("No session found, skipping profile load");
           setLoading(false);
         }
-      } else {
-        console.log("No session found, skipping profile load");
+      } catch (error) {
+        console.error("Error getting session:", error);
+        setError(error instanceof Error ? error : new Error("Failed to get session"));
         setLoading(false);
       }
     }
@@ -58,6 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log(`Auth state changed: ${event}`, session?.user?.id);
+        resetError();
         setSession(session);
         
         if (session && session.user) {
@@ -70,6 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               await loadUserProfile(session.user.id);
             } catch (error) {
               console.error("Error during auth state change:", error);
+              setError(error instanceof Error ? error : new Error("Authentication error"));
               setLoading(false);
             }
           } else {
@@ -77,6 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               await loadUserProfile(session.user.id);
             } catch (error) {
               console.error("Error loading profile on auth state change:", error);
+              setError(error instanceof Error ? error : new Error("Failed to load profile"));
               setLoading(false);
             }
           }
@@ -108,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (checkError) {
         console.error('Error checking for existing user:', checkError);
-        // Continue anyway to try to create the user
+        // Don't throw here, try to create user anyway
       }
       
       // If user doesn't exist, create a new profile
@@ -127,28 +146,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name = "New User";
         }
         
-        // Create the user profile with only fields that exist in the schema
-        const { error: createError } = await supabase
-          .from('users')
-          .insert({
-            auth_id: userId,
-            name: name,
-            class_year: 'Current Student',
-            role: 'current_student', // Required field
-            bio: '',
-            major: '',
-            gender: 'other' as UserGender, 
-            gender_preference: 'everyone' as GenderPreference,
-            profile_complete: false
-          });
+        // Try up to 3 times to create the user profile with exponential backoff
+        let retries = 0;
+        let success = false;
         
-        if (createError) {
-          console.error('Error creating new user profile:', createError);
-          toast.error("Failed to create your profile. Please try again.");
-          throw createError; // Re-throw to handle upstream
-        } else {
-          console.log("Successfully created new user profile");
-          toast.success("Welcome! Please complete your profile to get started.");
+        while (retries < 3 && !success) {
+          try {
+            const { error: createError } = await supabase
+              .from('users')
+              .insert({
+                auth_id: userId,
+                name: name,
+                class_year: 'Current Student',
+                role: 'current_student',
+                bio: '',
+                major: '',
+                gender: 'other' as UserGender,
+                gender_preference: 'everyone' as GenderPreference,
+                profile_complete: false
+              });
+            
+            if (createError) {
+              console.error(`Error creating user profile (attempt ${retries + 1}):`, createError);
+              if (createError.message?.includes('duplicate key')) {
+                // If it's a duplicate key error, the profile was probably created in a race condition
+                console.log("User profile already exists (created in parallel)");
+                success = true;
+                break;
+              }
+              
+              // If not successful, wait before retrying
+              if (retries < 2) {
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, retries) * 500));
+                retries++;
+              } else {
+                throw createError; // Throw on last retry
+              }
+            } else {
+              console.log("Successfully created new user profile");
+              toast.success("Welcome! Please complete your profile to get started.");
+              success = true;
+            }
+          } catch (error) {
+            console.error(`Error in user profile creation (attempt ${retries + 1}):`, error);
+            if (retries >= 2) {
+              throw error; // Re-throw on last retry
+            }
+            retries++;
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retries) * 500));
+          }
         }
       }
       
@@ -162,13 +208,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loadUserProfile = async (userId: string) => {
     if (!userId) {
       console.error("Cannot load user profile: userId is undefined");
+      setError(new Error("User ID not found"));
       setLoading(false);
       return;
     }
     
     try {
       console.log("Loading user profile for auth_id:", userId);
-      // Use .single() carefully, or use maybeSingle() to avoid 406 errors
+      
+      // Use .maybeSingle() to avoid 406 errors
       const { data: userData, error } = await supabase
         .from('users')
         .select(`
@@ -177,7 +225,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           clubs:user_clubs(name:clubs(*))
         `)
         .eq('auth_id', userId)
-        .maybeSingle(); // Using maybeSingle instead of single
+        .maybeSingle();
       
       if (error) {
         console.error('Error loading user profile:', error);
@@ -213,6 +261,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error in loadUserProfile:', error);
+      setError(error instanceof Error ? error : new Error("Failed to load profile"));
     } finally {
       setLoading(false);
     }
@@ -306,6 +355,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Implement Google authentication
   const signInWithGoogle = async (): Promise<void> => {
     try {
+      resetError();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -315,12 +365,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) {
         console.error('Google sign in error:', error);
+        setError(error);
         throw error;
       }
       
       console.log('Google authentication initiated:', data);
     } catch (error: any) {
       console.error('Failed to sign in with Google:', error.message);
+      setError(error instanceof Error ? error : new Error("Google authentication failed"));
       throw error;
     }
   };
@@ -328,27 +380,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Update phone authentication to create profile
   const signInWithPhone = async (phoneNumber: string): Promise<void> => {
     try {
+      resetError();
       const { data, error } = await supabase.auth.signInWithOtp({
         phone: phoneNumber,
       });
       
-      if (error) throw error;
+      if (error) {
+        setError(error);
+        throw error;
+      }
       console.log('Phone OTP sent:', data);
     } catch (error: any) {
       console.error('Phone sign in error:', error.message);
+      setError(error instanceof Error ? error : new Error("Phone authentication failed"));
       throw error;
     }
   };
 
   const verifyOtp = async (phoneNumber: string, otp: string): Promise<void> => {
     try {
+      resetError();
       const { data, error } = await supabase.auth.verifyOtp({
         phone: phoneNumber,
         token: otp,
         type: 'sms',
       });
       
-      if (error) throw error;
+      if (error) {
+        setError(error);
+        throw error;
+      }
       console.log('OTP verified successfully for user:', data.user?.id);
       
       if (data.user) {
@@ -365,6 +426,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error: any) {
       console.error('OTP verification error:', error.message);
+      setError(error instanceof Error ? error : new Error("OTP verification failed"));
       throw error;
     }
   };
@@ -376,7 +438,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signUp, 
       signOut, 
       loading, 
-      user, 
+      user,
+      error,
       isProfileComplete,
       profileComplete: isProfileComplete,
       setProfileComplete: setIsProfileComplete,

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, MessageSquare, Users, Compass } from 'lucide-react';
+import { Heart, MessageCircle, Users, Compass } from 'lucide-react';
 import TigerAnimation from '../components/TigerAnimation';
 import ProfileCompletionNotification from '../components/ProfileCompletionNotification';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,7 +24,7 @@ const Dashboard: React.FC = () => {
     {
       title: 'Messages',
       description: 'View and respond to conversations with your matches.',
-      icon: <MessageSquare size={40} className="text-princeton-orange" />,
+      icon: <MessageCircle size={40} className="text-princeton-orange" />,
       action: () => navigate('/chat'),
       color: 'from-blue-500 to-indigo-500',
     },
@@ -44,6 +44,12 @@ const Dashboard: React.FC = () => {
     },
   ];
   
+  // Function to handle dashboard navigation
+  const navigateTo = (path: string) => {
+    console.log(`Navigating to: ${path}`);
+    navigate(path);
+  };
+
   return (
     <AppLayout>
       <TigerAnimation />
@@ -66,7 +72,8 @@ const Dashboard: React.FC = () => {
             {features.map((feature) => (
               <Card 
                 key={feature.title} 
-                className={`bg-secondary/70 backdrop-blur-sm border-none shadow-lg overflow-hidden hover:scale-[1.02] transition-all duration-300 group`}
+                className="bg-secondary/70 backdrop-blur-sm border-none shadow-lg overflow-hidden hover:scale-[1.02] transition-all duration-300 group cursor-pointer"
+                onClick={() => navigateTo(feature.action())}
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-10 group-hover:opacity-20 transition-opacity`} />
                 <CardHeader className="pb-2">
@@ -84,7 +91,10 @@ const Dashboard: React.FC = () => {
                 </CardContent>
                 <CardFooter>
                   <Button 
-                    onClick={feature.action} 
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent double navigation
+                      feature.action();
+                    }}
                     className="w-full bg-princeton-orange hover:bg-princeton-orange/80 text-black font-medium"
                   >
                     Explore {feature.title}

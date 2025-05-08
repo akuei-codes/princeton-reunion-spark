@@ -313,26 +313,31 @@ export const recordSwipe = async (
       .from('users')
       .select('id')
       .eq('auth_id', userId)
-      .single();
+      .maybeSingle(); // Use maybeSingle instead of single to avoid 406 error
     
-    if (swiperError) {
-      console.error('Error getting swiper ID:', swiperError);
-      throw swiperError;
+    if (swiperError || !swiperData) {
+      console.error('Error getting swiper ID:', swiperError || 'User not found');
+      return false;
     }
     
     const { data: swipedData, error: swipedError } = await supabase
       .from('users')
       .select('id')
       .eq('auth_id', swipedUserId)
-      .single();
+      .maybeSingle(); // Use maybeSingle instead of single to avoid 406 error
     
-    if (swipedError) {
-      console.error('Error getting swiped ID:', swipedError);
-      throw swipedError;
+    if (swipedError || !swipedData) {
+      console.error('Error getting swiped ID:', swipedError || 'User not found');
+      return false;
     }
     
     const swiperId = swiperData.id;
     const swipedId = swipedData.id;
+    
+    if (!swiperId || !swipedId) {
+      console.error('Missing user IDs for swipe operation');
+      return false;
+    }
     
     // Record the swipe - using the correct column names from schema
     const { error } = await supabase
@@ -346,7 +351,7 @@ export const recordSwipe = async (
     
     if (error) {
       console.error('Error inserting swipe:', error);
-      throw error;
+      return false;
     }
     
     // If liked, check if there's a mutual like (a match)
@@ -357,11 +362,11 @@ export const recordSwipe = async (
         .eq('swiper_id', swipedId)
         .eq('swiped_id', swiperId)
         .eq('direction', 'right')
-        .single();
+        .maybeSingle(); // Use maybeSingle instead of single
       
-      if (matchError && matchError.code !== 'PGRST116') {
+      if (matchError) {
         console.error('Error checking for match:', matchError);
-        throw matchError;
+        return false;
       }
       
       if (data) {
@@ -377,7 +382,7 @@ export const recordSwipe = async (
         
         if (chatError) {
           console.error('Error creating match:', chatError);
-          throw chatError;
+          return false;
         }
         
         return true;
@@ -408,11 +413,11 @@ export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
       .from('users')
       .select('id, gender_preference, gender')
       .eq('auth_id', userId)
-      .single();
+      .maybeSingle(); // Use maybeSingle instead of single
     
-    if (userIdError) {
-      console.error("Error getting user database ID:", userIdError);
-      throw userIdError;
+    if (userIdError || !currentUserData) {
+      console.error("Error getting user database ID:", userIdError || "User not found");
+      return [];
     }
     
     const dbUserId = currentUserData.id;
@@ -446,20 +451,22 @@ export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
     
     if (swipeError) {
       console.error("Error getting swiped users:", swipeError);
-      throw swipeError;
+      // Continue without this filter if there's an error
     }
-    
-    // If there are swiped users, exclude them from results
-    if (swipedUserIds && swipedUserIds.length > 0) {
+    else if (swipedUserIds && swipedUserIds.length > 0) {
+      // If there are swiped users, exclude them from results
       const ids = swipedUserIds.map(s => s.swiped_id);
       query = query.not('id', 'in', `(${ids.join(',')})`);
     }
     
     const { data, error } = await query;
     
-    if (error) throw error;
+    if (error) {
+      console.error("Error getting potential matches:", error);
+      return [];
+    }
     
-    return data as UserWithRelations[];
+    return data as UserWithRelations[] || [];
   } catch (error) {
     console.error('Error getting potential matches:', error);
     return [];
@@ -481,11 +488,11 @@ export const getUserMatches = async (): Promise<any[]> => {
       .from('users')
       .select('id')
       .eq('auth_id', userId)
-      .single();
+      .maybeSingle(); // Use maybeSingle instead of single
     
-    if (userIdError) {
-      console.error("Error getting user database ID:", userIdError);
-      throw userIdError;
+    if (userIdError || !userInfo) {
+      console.error("Error getting user database ID:", userIdError || "User not found");
+      return [];
     }
     
     const dbUserId = userInfo.id;
@@ -502,7 +509,11 @@ export const getUserMatches = async (): Promise<any[]> => {
     
     if (error) {
       console.error("Error getting matches:", error);
-      throw error;
+      return [];
+    }
+    
+    if (!data || data.length === 0) {
+      return [];
     }
     
     // Transform the data to get the matched user

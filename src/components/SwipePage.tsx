@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -51,23 +50,23 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
     if (info.offset.x > 100) {
       setExitX(200);
       onSwipe('right');
-      swipeMutation.mutate({ userId: user.id, direction: 'right' });
+      swipeMutation.mutate({ userId: user.auth_id, direction: 'right' });
     } else if (info.offset.x < -100) {
       setExitX(-200);
       onSwipe('left');
-      swipeMutation.mutate({ userId: user.id, direction: 'left' });
+      swipeMutation.mutate({ userId: user.auth_id, direction: 'left' });
     }
   };
   
   const handleButtonSwipe = (direction: 'left' | 'right') => {
     setExitX(direction === 'right' ? 200 : -200);
     onSwipe(direction);
-    swipeMutation.mutate({ userId: user.id, direction });
+    swipeMutation.mutate({ userId: user.auth_id, direction });
   };
 
   // Add ability to view profile when clicking on card
   const viewProfile = () => {
-    navigate(`/profile/${user.id}`);
+    navigate(`/profile/${user.auth_id}`);
   };
 
   // Render interests properly
@@ -191,7 +190,7 @@ const SwipePage: React.FC = () => {
     
     const user = potentialMatches[currentIndex];
     
-    recordSwipe(user.id, direction).then(isMatch => {
+    recordSwipe(user.auth_id, direction).then(isMatch => {
       if (isMatch) {
         toast.success("It's a match! 🎉", {
           action: {

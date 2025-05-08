@@ -85,7 +85,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
           {/* Profile Image */}
           <div onClick={viewProfile} className="cursor-pointer h-full w-full">
             <img
-              src={user.photos && user.photos.length > 0 ? user.photos[0].photo_url : '/placeholder.svg'}
+              src={user.photo_urls && user.photo_urls.length > 0 ? user.photo_urls[0] : '/placeholder.svg'}
               alt={user.name}
               className="w-full h-full object-cover"
             />

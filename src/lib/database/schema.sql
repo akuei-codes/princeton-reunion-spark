@@ -8,7 +8,7 @@ CREATE TYPE user_vibe AS ENUM ('Looking to Party', 'Looking to Catch Up', 'Down 
 CREATE TYPE user_gender AS ENUM ('male', 'female', 'non-binary', 'other');
 CREATE TYPE gender_preference AS ENUM ('male', 'female', 'everyone');
 
--- Create users table
+-- Create users table with photo_urls array
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   auth_id TEXT UNIQUE NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE users (
   building TEXT,
   latitude FLOAT,
   longitude FLOAT,
-  photo_urls TEXT[] DEFAULT '{}',
+  photo_urls TEXT[] DEFAULT '{}', -- Store Cloudinary URLs as an array
   profile_complete BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

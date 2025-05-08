@@ -16,6 +16,7 @@ import UserProfile from "./pages/UserProfile";
 import Settings from "./pages/Settings";
 import HotZones from "./pages/HotZones";
 import Index from "./pages/Index";
+import Dashboard from "./pages/Dashboard";
 
 const queryClient = new QueryClient();
 
@@ -30,9 +31,11 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/profile-setup" element={<ProfileSetupPage />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/swipe" element={<SwipePage />} />
             <Route path="/matches" element={<Matches />} />
             <Route path="/chat/:id" element={<Chat />} />
+            <Route path="/chat" element={<Chat />} />
             <Route path="/profile/:id" element={<Profile />} />
             <Route path="/profile" element={<UserProfile />} />
             <Route path="/settings" element={<Settings />} />

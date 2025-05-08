@@ -1,5 +1,5 @@
 
-import { createClient, StorageError } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://cxopipsilxpcoyhkpfbr.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4b3BpcHNpbHhwY295aGtwZmJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2NzI0MjcsImV4cCI6MjA2MjI0ODQyN30.BTkUmlh6BT1uLxwjiPkPCP6XoTzzcPKdAEhsFltThWE';
@@ -39,8 +39,9 @@ export const ensureBucketExists = async (bucketName: string): Promise<boolean> =
     if (listError) {
       console.error('Error listing buckets:', listError);
       
-      // Check if this is an authorization error - using status code since StorageError might not have code property
-      if (listError.message?.includes('JWT') || listError.status === 401) {
+      // Check if this is an authorization error
+      if (listError.message?.includes('JWT') || 
+          (typeof listError === 'object' && 'status' in listError && listError.status === 401)) {
         console.error('Authorization error. User may not be logged in properly.');
         return false;
       }

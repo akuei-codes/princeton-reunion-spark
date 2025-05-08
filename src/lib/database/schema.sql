@@ -162,7 +162,7 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
 -- Policy for users table
 CREATE POLICY users_policy ON users
-  USING (auth_id = auth.uid() OR TRUE); -- Allow read of all users, but modify only own record
+  USING (auth_id = current_user OR TRUE); -- Allow read of all users, but modify only own record
 
 -- Policy for photos table
 CREATE POLICY photos_policy ON user_photos
@@ -171,28 +171,28 @@ CREATE POLICY photos_policy ON user_photos
 -- Create policy to allow users to update their own photos
 CREATE POLICY update_own_photos ON user_photos
   FOR UPDATE
-  USING (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
+  USING (user_id IN (SELECT id FROM users WHERE auth_id = current_user));
 
 -- Create policy to allow users to insert their own photos
 CREATE POLICY insert_own_photos ON user_photos
   FOR INSERT
-  WITH CHECK (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
+  WITH CHECK (user_id IN (SELECT id FROM users WHERE auth_id = current_user));
 
 -- Create policy to allow users to delete their own photos
 CREATE POLICY delete_own_photos ON user_photos
   FOR DELETE
-  USING (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
+  USING (user_id IN (SELECT id FROM users WHERE auth_id = current_user));
 
 -- Policy for swipes table
 CREATE POLICY swipes_insert_policy ON swipes
   FOR INSERT
-  WITH CHECK (swiper_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
+  WITH CHECK (swiper_id IN (SELECT id FROM users WHERE auth_id = current_user));
 
 -- Policy for matches table
 CREATE POLICY matches_policy ON matches
   USING (
-    user_id_1 = (SELECT id FROM users WHERE auth_id = auth.uid()) OR
-    user_id_2 = (SELECT id FROM users WHERE auth_id = auth.uid())
+    user_id_1 IN (SELECT id FROM users WHERE auth_id = current_user) OR
+    user_id_2 IN (SELECT id FROM users WHERE auth_id = current_user)
   );
 
 -- Policy for messages table
@@ -200,8 +200,8 @@ CREATE POLICY messages_policy ON messages
   USING (
     match_id IN (
       SELECT id FROM matches WHERE 
-      user_id_1 = (SELECT id FROM users WHERE auth_id = auth.uid()) OR
-      user_id_2 = (SELECT id FROM users WHERE auth_id = auth.uid())
+      user_id_1 IN (SELECT id FROM users WHERE auth_id = current_user) OR
+      user_id_2 IN (SELECT id FROM users WHERE auth_id = current_user)
     )
   );
 
@@ -209,11 +209,11 @@ CREATE POLICY messages_policy ON messages
 CREATE POLICY messages_insert_policy ON messages
   FOR INSERT
   WITH CHECK (
-    sender_id = (SELECT id FROM users WHERE auth_id = auth.uid()) AND
+    sender_id IN (SELECT id FROM users WHERE auth_id = current_user) AND
     match_id IN (
       SELECT id FROM matches WHERE 
-      user_id_1 = (SELECT id FROM users WHERE auth_id = auth.uid()) OR
-      user_id_2 = (SELECT id FROM users WHERE auth_id = auth.uid())
+      user_id_1 IN (SELECT id FROM users WHERE auth_id = current_user) OR
+      user_id_2 IN (SELECT id FROM users WHERE auth_id = current_user)
     )
   );
 

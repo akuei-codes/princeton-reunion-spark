@@ -378,6 +378,24 @@ const ProfileSetupPage: React.FC = () => {
         throw new Error('Failed to create user profile');
       }
       
+      console.log("session.user.id", session.user.id);
+      console.log("userData.id", userData.id);
+      
+      // Get a fresh copy of the user ID to ensure RLS works properly
+      const { data: freshUserData, error: idError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', session.user.id)
+        .single();
+        
+      if (idError || !freshUserData) {
+        console.error('Error getting fresh user ID:', idError);
+        toast.error('Could not validate user. Please try again.');
+        return;
+      }
+      
+      console.log("freshUserData.id", freshUserData.id);
+      
       // Import ensureBucketExists from supabase utility
       const { ensureBucketExists } = await import('@/lib/supabase');
       
@@ -390,12 +408,12 @@ const ProfileSetupPage: React.FC = () => {
         return;
       }
       
-      // Upload photos
+      // Upload photos using the freshly fetched user ID
       const photoUploadPromises = photos.map(async (photo, i) => {
         try {
           const { file } = photo;
           const fileExt = file.name.split('.').pop();
-          const filePath = `${userData.id}/${Date.now()}-${i}.${fileExt}`;
+          const filePath = `${freshUserData.id}/${Date.now()}-${i}.${fileExt}`;
           
           // Upload to storage
           const { error: uploadError, data: uploadData } = await supabase
@@ -417,11 +435,11 @@ const ProfileSetupPage: React.FC = () => {
             .from(bucketName)
             .getPublicUrl(filePath);
             
-          // Add to photos table
+          // Add to photos table using the fresh user ID
           const { error: photoError } = await supabase
             .from('user_photos')
             .insert({
-              user_id: userData.id,
+              user_id: freshUserData.id,
               photo_url: publicUrl,
               position: i
             });
@@ -447,7 +465,7 @@ const ProfileSetupPage: React.FC = () => {
         toast.warning(`Uploaded ${successfulUploads} of ${photos.length} photos. You can add more later.`);
       }
       
-      // Process interests
+      // Process interests - use freshUserData.id here too
       for (const interest of selectedInterests) {
         // Check if interest exists
         let interestId = null;
@@ -474,11 +492,11 @@ const ProfileSetupPage: React.FC = () => {
           interestId = newInterest.id;
         }
         
-        // Link interest to user
+        // Link interest to user with fresh user ID
         const { error: linkError } = await supabase
           .from('user_interests')
           .insert({
-            user_id: userData.id,
+            user_id: freshUserData.id,
             interest_id: interestId
           });
           
@@ -488,7 +506,7 @@ const ProfileSetupPage: React.FC = () => {
         }
       }
       
-      // Process clubs
+      // Process clubs - use freshUserData.id here too
       for (const club of selectedClubs) {
         // Check if club exists
         let clubId = null;
@@ -515,11 +533,11 @@ const ProfileSetupPage: React.FC = () => {
           clubId = newClub.id;
         }
         
-        // Link club to user
+        // Link club to user with fresh user ID
         const { error: linkError } = await supabase
           .from('user_clubs')
           .insert({
-            user_id: userData.id,
+            user_id: freshUserData.id,
             club_id: clubId
           });
           
@@ -864,197 +882,4 @@ const ProfileSetupPage: React.FC = () => {
                       ))}
                     </div>
                     
-                    <div className="max-h-40 overflow-y-auto bg-secondary/50 rounded-lg p-2">
-                      <div className="flex flex-wrap gap-2">
-                        {availableClubs
-                          .filter(club => !selectedClubs.includes(club))
-                          .map((club) => (
-                            <button
-                              key={club}
-                              onClick={() => toggleClub(club)}
-                              disabled={selectedClubs.length >= MAX_CLUBS}
-                              className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm hover:bg-secondary/80 disabled:opacity-50"
-                            >
-                              {club}
-                            </button>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {currentStep === 'location' && (
-              <div className="space-y-6">
-                <div className="text-center mb-4">
-                  <h2 className="text-xl font-bold text-princeton-white mb-2">Your Location</h2>
-                  <p className="text-princeton-white/70 text-sm">
-                    Tell others where you are on campus
-                  </p>
-                </div>
-                
-                <div className="space-y-4">
-                  <button
-                    onClick={findNearestBuilding}
-                    disabled={isLocating}
-                    className="w-full flex items-center justify-center gap-2 p-3 bg-princeton-orange rounded-lg text-black font-medium disabled:opacity-70"
-                  >
-                    {isLocating ? (
-                      <>
-                        <Loader2 size={18} className="animate-spin" />
-                        <span>Finding your location...</span>
-                      </>
-                    ) : (
-                      <>
-                        <MapPin size={18} />
-                        <span>Use my current location</span>
-                      </>
-                    )}
-                  </button>
-                  
-                  {locationError && (
-                    <div className="text-red-500 text-sm">{locationError}</div>
-                  )}
-                  
-                  <div className="text-center text-sm text-princeton-white/70 my-2">
-                    - or select manually -
-                  </div>
-                  
-                  <div className="max-h-60 overflow-y-auto bg-secondary/50 rounded-lg">
-                    {buildings.map((building) => (
-                      <button
-                        key={building.id}
-                        onClick={() => setSelectedBuilding(building)}
-                        className={`w-full flex items-center p-3 border-b border-princeton-white/10 last:border-b-0 transition-colors ${
-                          selectedBuilding?.id === building.id
-                            ? 'bg-princeton-orange/20'
-                            : 'hover:bg-secondary'
-                        }`}
-                      >
-                        <div className="flex-1 text-left">
-                          <div className="text-princeton-white">{building.name}</div>
-                        </div>
-                        {selectedBuilding?.id === building.id && (
-                          <Check size={18} className="text-princeton-orange" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  {selectedBuilding && (
-                    <div className="p-3 bg-secondary/30 rounded-lg text-center">
-                      <div className="text-princeton-orange font-medium">Selected Location</div>
-                      <div className="text-princeton-white">{selectedBuilding.name}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {currentStep === 'review' && (
-              <div className="space-y-6">
-                <div className="text-center mb-4">
-                  <h2 className="text-xl font-bold text-princeton-white mb-2">Review Your Profile</h2>
-                  <p className="text-princeton-white/70 text-sm">
-                    Looking good! Ready to find your Tiger match?
-                  </p>
-                </div>
-                
-                <div className="bg-secondary/30 rounded-lg p-4 space-y-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="relative">
-                      <img 
-                        src={photos[0]?.url || '/placeholder.svg'}
-                        alt={name}
-                        className="w-16 h-16 rounded-full object-cover"
-                      />
-                    </div>
-                    
-                    <div>
-                      <h3 className="text-lg font-medium text-princeton-white">{name}</h3>
-                      <p className="text-sm text-princeton-white/70">Class of {classYear} • {major}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center text-princeton-white/70 text-sm">
-                      <MapPin size={14} className="mr-1 text-princeton-orange" />
-                      <span>{selectedBuilding?.name}</span>
-                    </div>
-                    
-                    <div className="text-sm text-princeton-white/70">
-                      {gender} • Interested in {genderPreference === 'everyone' ? 'everyone' : genderPreference}
-                    </div>
-                    
-                    <div className="bg-princeton-orange/10 rounded px-2 py-1 inline-block">
-                      <span className="text-sm text-princeton-orange">
-                        {vibeOptions.find(v => v.id === selectedVibe)?.label}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-princeton-white/80">Bio:</p>
-                    <p className="text-sm text-princeton-white/70">{bio || 'No bio provided'}</p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm font-medium text-princeton-white/80 mb-1">Interests:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedInterests.map(interest => (
-                        <span 
-                          key={interest}
-                          className="bg-secondary px-2 py-0.5 rounded-full text-xs text-princeton-white/70"
-                        >
-                          {interest}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm font-medium text-princeton-white/80 mb-1">Clubs:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedClubs.map(club => (
-                        <span 
-                          key={club}
-                          className="bg-secondary px-2 py-0.5 rounded-full text-xs text-princeton-white/70"
-                        >
-                          {club}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <p className="text-xs text-center text-princeton-white/50 mt-2">
-                    You can always edit your profile later
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-8">
-              <button 
-                onClick={handleContinue}
-                className="w-full tiger-btn flex items-center justify-center gap-2"
-                disabled={
-                  (currentStep === 'basics' && (!name || !classYear || !major)) ||
-                  (currentStep === 'photos' && photos.length === 0) ||
-                  (currentStep === 'gender' && (!gender || !selectedVibe)) ||
-                  (currentStep === 'interests' && (selectedInterests.length === 0 || selectedClubs.length === 0)) ||
-                  (currentStep === 'location' && !selectedBuilding)
-                }
-              >
-                {currentStep === 'review' ? 'Complete Profile' : 'Continue'}
-                <ArrowRight size={18} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-};
-
-export default ProfileSetupPage;
+                    <div className="max-h-4

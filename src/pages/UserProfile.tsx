@@ -133,10 +133,31 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
     }
     
     try {
+      // Get current session to access user ID
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('You must be logged in');
+        return;
+      }
+      
+      // Get a fresh copy of the user ID to ensure RLS works properly
+      const { data: freshUserData, error: idError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', session.user.id)
+        .single();
+        
+      if (idError || !freshUserData) {
+        console.error('Error getting fresh user ID:', idError);
+        toast.error('Could not validate user. Please try again.');
+        return;
+      }
+      
       // Calculate the next position
       const position = user?.photos?.length || 0;
       
-      await uploadUserPhoto(file, position);
+      // Upload the photo using the fresh user ID
+      await uploadUserPhoto(file, position, freshUserData.id);
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
       toast.success('Photo added successfully');
     } catch (error) {

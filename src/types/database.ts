@@ -26,6 +26,7 @@ export interface User {
   profile_complete: boolean;
   created_at: string;
   updated_at: string;
+  intention?: 'casual' | 'serious'; // Add the intention property
   unread?: boolean; // Add this for UI display
 }
 

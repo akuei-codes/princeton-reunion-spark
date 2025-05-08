@@ -40,7 +40,7 @@ export const ensureBucketExists = async (bucketName: string): Promise<boolean> =
       console.error('Error listing buckets:', listError);
       
       // Check if this is an authorization error
-      if (listError.message?.includes('JWT') || listError.status === 401) {
+      if (listError.message?.includes('JWT') || listError.code === '401') {
         console.error('Authorization error. User may not be logged in properly.');
         return false;
       }

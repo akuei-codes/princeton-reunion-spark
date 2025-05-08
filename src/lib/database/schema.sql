@@ -252,6 +252,7 @@ CREATE POLICY swipes_select_policy ON swipes
 
 -- Policy for matches table
 CREATE POLICY matches_policy ON matches
+  FOR SELECT
   USING (
     user_id_1 IN (SELECT id FROM users WHERE auth_id = auth.uid()) OR
     user_id_2 IN (SELECT id FROM users WHERE auth_id = auth.uid())
@@ -259,6 +260,7 @@ CREATE POLICY matches_policy ON matches
 
 -- Policy for messages table
 CREATE POLICY messages_policy ON messages
+  FOR SELECT
   USING (
     match_id IN (
       SELECT id FROM matches WHERE 
@@ -309,7 +311,7 @@ FOR INSERT
 TO authenticated
 WITH CHECK (
   bucket_id = 'user-photos'
-  AND auth.uid()::text = storage.foldername(name)::text
+  AND auth.uid()::text = (storage.foldername(name))::text
 );
 
 -- SELECT: Allow public read access to all photos
@@ -328,7 +330,7 @@ FOR UPDATE
 TO authenticated
 USING (
   bucket_id = 'user-photos'
-  AND auth.uid()::text = storage.foldername(name)::text
+  AND auth.uid()::text = (storage.foldername(name))::text
 );
 
 -- DELETE: Allow users to delete only their own photos
@@ -338,5 +340,5 @@ FOR DELETE
 TO authenticated
 USING (
   bucket_id = 'user-photos'
-  AND auth.uid()::text = storage.foldername(name)::text
+  AND auth.uid()::text = (storage.foldername(name))::text
 );

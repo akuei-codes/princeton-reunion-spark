@@ -6,7 +6,7 @@ import UserProfile from './UserProfile';
 const Profile: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   
-  return <UserProfile userId={id} />;
+  return <UserProfile viewUserId={id} />;
 };
 
 export default Profile;

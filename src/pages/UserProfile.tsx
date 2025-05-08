@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -13,7 +12,11 @@ import { toast } from "sonner";
 import { useAuth } from '@/contexts/AuthContext';
 import { UserGender, GenderPreference } from '@/types/database';
 
-const UserProfile: React.FC = () => {
+interface UserProfileProps {
+  viewUserId?: string;
+}
+
+const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { signOut } = useAuth();
@@ -33,20 +36,36 @@ const UserProfile: React.FC = () => {
   const [availableInterests, setAvailableInterests] = useState<string[]>([]);
   const [availableClubs, setAvailableClubs] = useState<string[]>([]);
 
-  // Fetch current user data
+  // If we're viewing someone else's profile, we get their ID from the URL
+  const isViewingOthersProfile = !!viewUserId;
+
+  // Fetch user data - either current user or the specific user being viewed
   const { data: user, isLoading, error } = useQuery({
-    queryKey: ['current-user'],
-    queryFn: getCurrentUser,
-    meta: {
-      onSuccess: (data) => {
-        if (data) {
-          setBio(data.bio || '');
-          setMajor(data.major || '');
-          setGender(data.gender || '');
-          setGenderPreference(data.gender_preference || 'everyone');
-          setSelectedInterests(data.interests.map(i => i.name));
-          setSelectedClubs(data.clubs.map(c => c.name));
+    queryKey: isViewingOthersProfile ? ['user', viewUserId] : ['current-user'],
+    queryFn: isViewingOthersProfile 
+      ? async () => {
+          // Get the specific user by ID
+          const { data } = await supabase
+            .from('users')
+            .select(`
+              *,
+              photos:user_photos(*),
+              interests:user_interests(name:interests(*)),
+              clubs:user_clubs(name:clubs(*))
+            `)
+            .eq('id', viewUserId)
+            .single();
+          return data;
         }
+      : getCurrentUser,
+    onSuccess: (data) => {
+      if (data && !isViewingOthersProfile) {
+        setBio(data.bio || '');
+        setMajor(data.major || '');
+        setGender(data.gender || '');
+        setGenderPreference(data.gender_preference || 'everyone');
+        setSelectedInterests(data.interests.map(i => i.name));
+        setSelectedClubs(data.clubs.map(c => c.name));
       }
     }
   });
@@ -223,6 +242,134 @@ const UserProfile: React.FC = () => {
     );
   }
 
+  // Viewing someone else's profile (read-only)
+  if (isViewingOthersProfile) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gradient-to-b from-black to-[#121212]">
+        <header className="container mx-auto px-4 py-6 flex justify-between items-center">
+          <button 
+            onClick={() => navigate(-1)}
+            className="text-princeton-white hover:text-princeton-orange transition-colors"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <Logo />
+          <div className="w-8"></div> {/* Empty space for balance */}
+        </header>
+  
+        <main className="flex-1 container mx-auto px-4 py-6 pb-20">
+          <div className="flex flex-col items-center">
+            {/* Profile photo */}
+            <div className="relative mb-6">
+              <img 
+                src={user.photos[0]?.photo_url || '/placeholder.svg'}
+                alt={user.name}
+                className="w-24 h-24 rounded-full object-cover border-2 border-princeton-orange"
+              />
+            </div>
+            
+            {/* User info */}
+            <div className="text-center mb-6">
+              <h1 className="text-2xl font-bold text-princeton-white">
+                {user.name}, <span className="text-princeton-orange">{user.class_year}</span>
+              </h1>
+              
+              {user.building && (
+                <div className="flex items-center justify-center mt-1 text-sm text-princeton-white/70">
+                  <MapPin size={14} className="mr-1" />
+                  <span>{user.building}</span>
+                </div>
+              )}
+              
+              {user.vibe && (
+                <div className="mt-2 inline-block px-3 py-1 bg-princeton-orange/20 text-princeton-orange rounded-full text-sm">
+                  {user.vibe}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Bio */}
+          <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
+            <h2 className="text-lg font-semibold text-princeton-white mb-3">About</h2>
+            <p className="text-princeton-white/80">{user.bio || "No bio added yet"}</p>
+          </div>
+          
+          {/* Interests */}
+          <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
+            <h2 className="text-lg font-semibold text-princeton-white mb-3">Interests</h2>
+            <div className="flex flex-wrap gap-2">
+              {user.interests && user.interests.length > 0 ? (
+                user.interests.map((interest, index) => (
+                  <div 
+                    key={index}
+                    className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm"
+                  >
+                    {interest.name}
+                  </div>
+                ))
+              ) : (
+                <p className="text-princeton-white/60">No interests added yet</p>
+              )}
+            </div>
+          </div>
+          
+          {/* Princeton Info */}
+          <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
+            <h2 className="text-lg font-semibold text-princeton-white mb-3">Princeton Info</h2>
+            <div className="space-y-3 text-princeton-white/80">
+              <div className="flex items-start gap-2">
+                <GraduationCap className="text-princeton-orange mt-1" size={18} />
+                <div>Major: {user.major || "Not specified"}</div>
+              </div>
+              
+              <div className="flex items-start gap-2">
+                <Calendar className="text-princeton-orange mt-1" size={18} />
+                <div>Class of {user.class_year}</div>
+              </div>
+              
+              <div className="flex items-start gap-2">
+                <Users className="text-princeton-orange mt-1" size={18} />
+                <div>
+                  Clubs: {user.clubs && user.clubs.length > 0 
+                    ? user.clubs.map(club => club.name).join(', ') 
+                    : "None added yet"}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Photos */}
+          {user.photos && user.photos.length > 0 && (
+            <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
+              <h2 className="text-lg font-semibold text-princeton-white mb-3">Photos</h2>
+              <div className="grid grid-cols-3 gap-2">
+                {user.photos.map((photo, index) => (
+                  <div className="aspect-square" key={photo.id}>
+                    <img 
+                      src={photo.photo_url} 
+                      alt={`${user.name} photo ${index + 1}`} 
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <button 
+            onClick={() => navigate(-1)}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-princeton-orange rounded-lg text-black hover:bg-princeton-orange/90 transition-colors"
+          >
+            <ArrowLeft size={18} />
+            <span>Back</span>
+          </button>
+        </main>
+      </div>
+    );
+  }
+
+  // The rest of the component - editing own profile
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-black to-[#121212]">
       <header className="container mx-auto px-4 py-6 flex justify-between items-center">

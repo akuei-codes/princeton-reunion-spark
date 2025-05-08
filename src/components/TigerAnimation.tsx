@@ -44,7 +44,7 @@ const TigerAnimation: React.FC = () => {
       
       // Tiger face (orange circle)
       ctx.beginPath();
-      ctx.fillStyle = '#F58025';
+      ctx.fillStyle = '#F58025'; // Princeton orange
       ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
       ctx.fill();
       
@@ -231,6 +231,8 @@ const TigerAnimation: React.FC = () => {
     <canvas 
       ref={canvasRef} 
       className="fixed top-0 left-0 w-full h-full -z-10 opacity-30"
+      data-testid="tiger-animation"
+      aria-hidden="true"
     />
   );
 };

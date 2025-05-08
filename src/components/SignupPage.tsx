@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
@@ -8,7 +7,7 @@ import { ArrowLeft, Phone, Mail } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-type UserRole = 'current-student' | 'recent-grad' | 'alum' | null;
+type UserRole = 'current-student' | 'class-2025' | 'recent-grad' | 'alum' | null;
 type AuthMethod = 'email' | 'phone' | null;
 
 const SignupPage: React.FC = () => {
@@ -100,7 +99,7 @@ const SignupPage: React.FC = () => {
         description: "Phone verified successfully",
       });
       
-      navigate('/profile-setup');
+      navigate('/');
     } catch (error: any) {
       toast({
         title: "Error",
@@ -113,7 +112,7 @@ const SignupPage: React.FC = () => {
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // In a real app, we would handle email authentication here
-    navigate('/profile-setup');
+    navigate('/');
   };
 
   return (
@@ -185,21 +184,57 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onSelect }) => {
       <div className="space-y-4">
         <RoleButton 
           role="current-student"
-          label="Current Student (Class of 2025)"
+          label="Current Student"
+          description="Students currently enrolled at Princeton"
+          emoji="🎓"
           onClick={() => onSelect('current-student')}
+        />
+        <RoleButton 
+          role="class-2025"
+          label="Class of 2025"
+          description="Graduating seniors at Princeton"
+          emoji="🏆"
+          onClick={() => onSelect('class-2025')}
         />
         <RoleButton 
           role="recent-grad"
           label="Recent Grad ('20-'24)"
+          description="Recent Princeton graduates"
+          emoji="🔶"
           onClick={() => onSelect('recent-grad')}
         />
         <RoleButton 
           role="alum"
-          label="Alum (All class years welcome)"
+          label="Alum (All class years)"
+          description="Princeton alumni from any year"
+          emoji="🐯"
           onClick={() => onSelect('alum')}
         />
       </div>
     </div>
+  );
+};
+
+interface RoleButtonProps {
+  role: UserRole;
+  label: string;
+  description: string;
+  emoji: string;
+  onClick: () => void;
+}
+
+const RoleButton: React.FC<RoleButtonProps> = ({ role, label, description, emoji, onClick }) => {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full p-4 rounded-lg border border-princeton-orange/30 bg-secondary hover:bg-princeton-orange hover:text-princeton-black transition-all duration-200 flex items-center text-left text-princeton-white font-medium"
+    >
+      <div className="text-2xl mr-3">{emoji}</div>
+      <div>
+        <div className="font-bold">{label}</div>
+        <div className="text-xs opacity-80">{description}</div>
+      </div>
+    </button>
   );
 };
 
@@ -252,23 +287,6 @@ const AuthMethodSelection: React.FC<AuthMethodSelectionProps> = ({ onSelect, onG
   );
 };
 
-interface RoleButtonProps {
-  role: UserRole;
-  label: string;
-  onClick: () => void;
-}
-
-const RoleButton: React.FC<RoleButtonProps> = ({ role, label, onClick }) => {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full p-4 rounded-lg border border-princeton-orange/30 bg-secondary hover:bg-princeton-orange hover:text-princeton-black transition-all duration-200 text-left text-princeton-white font-medium"
-    >
-      {label}
-    </button>
-  );
-};
-
 interface EmailSignupProps {
   email: string;
   password: string;
@@ -288,6 +306,7 @@ const EmailSignup: React.FC<EmailSignupProps> = ({
 }) => {
   const roleLabels = {
     'current-student': 'Current Student',
+    'class-2025': 'Class of 2025',
     'recent-grad': 'Recent Grad',
     'alum': 'Alum',
   };

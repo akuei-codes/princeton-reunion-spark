@@ -1,9 +1,9 @@
-
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import { ArrowLeft, ArrowRight, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Vibe = 'party' | 'catch-up' | 'hook-up' | 'deeper' | 'roam' | 'night';
 
@@ -27,6 +27,7 @@ const MAX_PHOTO_SIZE_MB = 5;
 
 const ProfileSetupPage: React.FC = () => {
   const navigate = useNavigate();
+  const { setProfileComplete } = useAuth();
   const [step, setStep] = useState<number>(1);
   const [name, setName] = useState<string>('');
   const [classYear, setClassYear] = useState<string>('');
@@ -39,7 +40,15 @@ const ProfileSetupPage: React.FC = () => {
     if (step < 3) {
       setStep(step + 1);
     } else {
-      // In a real app, would save profile here
+      // Mark profile as complete
+      setProfileComplete(true);
+      
+      // In a real app, we would save the profile to the database here
+      toast.success("Profile completed successfully!", {
+        duration: 3000,
+      });
+      
+      // Navigate to the swipe page
       navigate('/swipe');
     }
   };
@@ -48,7 +57,7 @@ const ProfileSetupPage: React.FC = () => {
     if (step > 1) {
       setStep(step - 1);
     } else {
-      navigate('/signup');
+      navigate('/');
     }
   };
 

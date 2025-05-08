@@ -7,6 +7,8 @@ type AuthContextType = {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  profileComplete: boolean;
+  setProfileComplete: (complete: boolean) => void;
   signInWithGoogle: () => Promise<void>;
   signInWithPhone: (phone: string) => Promise<{ data: any; error: any }>;
   verifyOtp: (phone: string, token: string) => Promise<{ data: any; error: any }>;
@@ -19,12 +21,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileComplete, setProfileComplete] = useState(false);
 
   useEffect(() => {
     const setData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       setUser(session?.user ?? null);
+      
+      // If we have a user, check if their profile is complete
+      if (session?.user) {
+        // In a real app, we'd fetch profile completion status from the database
+        // For now, we'll check localStorage as a demo
+        const hasProfile = localStorage.getItem('profileComplete') === 'true';
+        setProfileComplete(hasProfile);
+      }
+      
       setLoading(false);
     };
 
@@ -32,6 +44,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        
+        // If user just logged in, check profile status
+        if (session?.user) {
+          // In a real app, we'd fetch profile completion status from the database
+          const hasProfile = localStorage.getItem('profileComplete') === 'true';
+          setProfileComplete(hasProfile);
+        }
+        
         setLoading(false);
       }
     );
@@ -42,6 +62,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscription.unsubscribe();
     };
   }, []);
+
+  const handleSetProfileComplete = (complete: boolean) => {
+    setProfileComplete(complete);
+    localStorage.setItem('profileComplete', complete ? 'true' : 'false');
+  };
 
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
@@ -74,6 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     loading,
+    profileComplete,
+    setProfileComplete: handleSetProfileComplete,
     signInWithGoogle,
     signInWithPhone,
     verifyOtp,

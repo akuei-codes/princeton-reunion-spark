@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
-import LandingPage from "./components/LandingPage";
 import SignupPage from "./components/SignupPage";
 import ProfileSetupPage from "./components/ProfileSetupPage";
 import SwipePage from "./components/SwipePage";
@@ -16,6 +15,7 @@ import Profile from "./pages/Profile";
 import UserProfile from "./pages/UserProfile";
 import Settings from "./pages/Settings";
 import HotZones from "./pages/HotZones";
+import Index from "./pages/Index";
 
 const queryClient = new QueryClient();
 
@@ -27,7 +27,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<Index />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/profile-setup" element={<ProfileSetupPage />} />
             <Route path="/swipe" element={<SwipePage />} />

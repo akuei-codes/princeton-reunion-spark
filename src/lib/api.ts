@@ -130,7 +130,8 @@ export const uploadUserPhoto = async (file: File, position: number) => {
       throw uploadError;
     }
     
-    const newPhotoUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${uploadData.Key}`;
+    // Fix: Build the URL correctly based on the returned path
+    const newPhotoUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${filePath}`;
     
     // Insert the new photo URL at the specified position
     currentPhotos[position] = newPhotoUrl;

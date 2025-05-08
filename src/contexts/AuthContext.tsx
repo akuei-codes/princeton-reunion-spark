@@ -4,6 +4,7 @@ import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { UserGender, GenderPreference } from '@/types/database';
 import { updateUserProfile } from '@/lib/api';
+import { toast } from "sonner";
 
 interface AuthContextType {
   session: Session | null;
@@ -53,7 +54,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (session && session.user) {
           console.log("Auth state change with session, loading profile for:", session.user.id);
-          await loadUserProfile(session.user.id);
+          
+          if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+            // Check if user exists in database
+            await ensureUserProfile(session.user.id, session.user);
+            await loadUserProfile(session.user.id);
+          } else {
+            await loadUserProfile(session.user.id);
+          }
         } else {
           console.log("Auth state change without session, clearing user data");
           setUser(null);
@@ -69,6 +77,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
   }, []);
+
+  // New function to ensure a user profile exists
+  const ensureUserProfile = async (userId: string, authUser: any) => {
+    try {
+      // First check if user already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', userId)
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error('Error checking for existing user:', checkError);
+        // Continue anyway to try to create the user
+      }
+      
+      // If user doesn't exist, create a new profile
+      if (!existingUser) {
+        console.log("Creating new user profile for auth_id:", userId);
+        
+        // Extract name from metadata or email
+        let name = '';
+        if (authUser.user_metadata && authUser.user_metadata.full_name) {
+          name = authUser.user_metadata.full_name;
+        } else if (authUser.email) {
+          name = authUser.email.split('@')[0]; // Use part before @ as name
+        } else if (authUser.phone) {
+          name = "Phone User"; // Default name for phone users
+        } else {
+          name = "New User";
+        }
+        
+        // Create the user profile
+        const { error: createError } = await supabase
+          .from('users')
+          .insert([
+            {
+              auth_id: userId,
+              name,
+              class_year: 'Current Student',
+              bio: '',
+              major: '',
+              gender: 'other' as UserGender, 
+              gender_preference: 'everyone' as GenderPreference,
+              profile_complete: false,
+              intention: 'casual', // Default intention
+            }
+          ]);
+        
+        if (createError) {
+          console.error('Error creating new user profile:', createError);
+          toast.error("Failed to create your profile. Please try again.");
+        } else {
+          console.log("Successfully created new user profile");
+          toast.success("Welcome! Please complete your profile to get started.");
+        }
+      }
+    } catch (error) {
+      console.error('Error in ensureUserProfile:', error);
+    }
+  };
   
   const loadUserProfile = async (userId: string) => {
     if (!userId) {
@@ -230,6 +299,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Update phone authentication to create profile
   const signInWithPhone = async (phoneNumber: string): Promise<void> => {
     try {
       const { data, error } = await supabase.auth.signInWithOtp({
@@ -255,46 +325,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
       console.log('OTP verified successfully for user:', data.user?.id);
       
-      // If this is a new user, create a profile
       if (data.user) {
-        // Check if profile already exists
-        const { data: existingProfile } = await supabase
-          .from('users')
-          .select('id')
-          .eq('auth_id', data.user.id)
-          .single();
-          
-        if (!existingProfile) {
-          console.log("Creating new profile for phone auth user");
-          // Create a minimal user profile
-          const { error: profileError } = await supabase
-            .from('users')
-            .insert([
-              {
-                auth_id: data.user.id,
-                name: data.user.phone || 'New User',
-                class_year: 'Current Student',
-                bio: '',
-                major: '',
-                gender: 'other' as UserGender, 
-                gender_preference: 'everyone' as GenderPreference,
-                profile_complete: false,
-              }
-            ]);
-          
-          if (profileError) {
-            console.error('Error creating user profile:', profileError);
-          }
-        }
-      }
-      
-      // Navigate based on profile completion after successful verification
-      if (data.user) {
+        // ensureUserProfile will create a profile if one doesn't exist
+        await ensureUserProfile(data.user.id, data.user);
         await loadUserProfile(data.user.id);
+        
+        // Determine where to navigate
         if (!isProfileComplete) {
           navigate('/profile-setup');
         } else {
-          navigate('/swipe');
+          navigate('/dashboard');
         }
       }
     } catch (error: any) {

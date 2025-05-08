@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { checkUserTableAccess } from '@/lib/supabase';
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, isProfileComplete } = useAuth();
   const [checkingPermissions, setCheckingPermissions] = useState(false);
   
   useEffect(() => {
@@ -47,8 +47,13 @@ const Index = () => {
     );
   }
   
-  // If authenticated, redirect to dashboard
+  // If authenticated, redirect based on profile completion
   if (user) {
+    // For new users or users with incomplete profiles, redirect to profile setup
+    if (!isProfileComplete && user) {
+      return <Navigate to="/profile-setup" replace />;
+    }
+    // For users with complete profiles, redirect to dashboard
     return <Navigate to="/dashboard" replace />;
   }
   

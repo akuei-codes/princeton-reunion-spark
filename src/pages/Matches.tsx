@@ -14,8 +14,8 @@ const Matches: React.FC = () => {
   const { data: matches, isLoading, error, refetch } = useQuery({
     queryKey: ['matches'],
     queryFn: () => getUserMatches(),
-    onSettled: (data, error) => {
-      if (error) {
+    meta: {
+      onError: (error: Error) => {
         console.error("Error fetching matches:", error);
         toast.error("Failed to load matches");
       }

@@ -18,28 +18,28 @@ const Dashboard: React.FC = () => {
       title: 'Swipe',
       description: 'Find potential matches by swiping through profiles of other Tigers.',
       icon: <Heart size={40} className="text-princeton-orange" />,
-      action: () => navigate('/swipe'),
+      action: '/swipe',
       color: 'from-orange-500 to-red-500',
     },
     {
       title: 'Messages',
       description: 'View and respond to conversations with your matches.',
       icon: <MessageCircle size={40} className="text-princeton-orange" />,
-      action: () => navigate('/chat'),
+      action: '/chat',
       color: 'from-blue-500 to-indigo-500',
     },
     {
       title: 'Matches',
       description: 'See all your current matches and start conversations.',
       icon: <Users size={40} className="text-princeton-orange" />,
-      action: () => navigate('/matches'),
+      action: '/matches',
       color: 'from-green-500 to-emerald-500',
     },
     {
       title: 'Hot Zones',
       description: 'Discover popular reunion areas and events happening now.',
       icon: <Compass size={40} className="text-princeton-orange" />,
-      action: () => navigate('/zones'),
+      action: '/zones',
       color: 'from-amber-500 to-yellow-500',
     },
   ];
@@ -73,7 +73,7 @@ const Dashboard: React.FC = () => {
               <Card 
                 key={feature.title} 
                 className="bg-secondary/70 backdrop-blur-sm border-none shadow-lg overflow-hidden hover:scale-[1.02] transition-all duration-300 group cursor-pointer"
-                onClick={() => navigateTo(feature.action())}
+                onClick={() => navigateTo(feature.action)}
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-10 group-hover:opacity-20 transition-opacity`} />
                 <CardHeader className="pb-2">
@@ -93,7 +93,7 @@ const Dashboard: React.FC = () => {
                   <Button 
                     onClick={(e) => {
                       e.stopPropagation(); // Prevent double navigation
-                      feature.action();
+                      navigateTo(feature.action);
                     }}
                     className="w-full bg-princeton-orange hover:bg-princeton-orange/80 text-black font-medium"
                   >

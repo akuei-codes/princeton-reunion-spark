@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
-import { ArrowLeft, ArrowRight, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Upload, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 type Vibe = 'party' | 'catch-up' | 'hook-up' | 'deeper' | 'roam' | 'night';
 
@@ -21,6 +22,9 @@ const vibeOptions: VibeOption[] = [
   { id: 'night', label: "Let's Just See Where the Night Takes Us", emoji: '🌙' },
 ];
 
+const MAX_PHOTOS = 6;
+const MAX_PHOTO_SIZE_MB = 5;
+
 const ProfileSetupPage: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState<number>(1);
@@ -28,7 +32,8 @@ const ProfileSetupPage: React.FC = () => {
   const [classYear, setClassYear] = useState<string>('');
   const [selectedVibe, setSelectedVibe] = useState<Vibe | null>(null);
   const [bio, setBio] = useState<string>('');
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<{url: string, file: File}[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleContinue = () => {
     if (step < 3) {
@@ -47,10 +52,50 @@ const ProfileSetupPage: React.FC = () => {
     }
   };
 
-  const handleAddPhoto = () => {
-    // In a real app, would handle photo upload here
-    // For this demo, just add a placeholder
-    setPhotos([...photos, `https://source.unsplash.com/random/300x400?person&${Date.now()}`]);
+  const handleAddPhotoClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    
+    // Check if we already have 6 photos
+    if (photos.length >= MAX_PHOTOS) {
+      toast.error(`Maximum ${MAX_PHOTOS} photos allowed`);
+      return;
+    }
+    
+    // Check file size (5MB max)
+    if (file.size > MAX_PHOTO_SIZE_MB * 1024 * 1024) {
+      toast.error(`Photo size must be less than ${MAX_PHOTO_SIZE_MB}MB`);
+      return;
+    }
+    
+    // Create a URL for the file
+    const url = URL.createObjectURL(file);
+    
+    // Add the new photo
+    setPhotos([...photos, {url, file}]);
+    
+    // Reset the file input so the same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    const updatedPhotos = [...photos];
+    
+    // Revoke the URL to prevent memory leaks
+    URL.revokeObjectURL(updatedPhotos[index].url);
+    
+    // Remove the photo
+    updatedPhotos.splice(index, 1);
+    setPhotos(updatedPhotos);
   };
 
   return (
@@ -165,31 +210,54 @@ const ProfileSetupPage: React.FC = () => {
                 <div className="text-center mb-4">
                   <h2 className="text-xl font-bold text-princeton-white mb-2">Add Photos</h2>
                   <p className="text-princeton-white/70 text-sm">
-                    Show off your best moments or fun throwbacks
+                    Show off your best moments (up to 6 photos)
                   </p>
                 </div>
                 
                 <div className="grid grid-cols-3 gap-3">
-                  {[...Array(6)].map((_, index) => {
+                  {/* Hidden file input */}
+                  <input 
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  
+                  {/* Photo grid */}
+                  {[...Array(MAX_PHOTOS)].map((_, index) => {
                     const hasPhoto = index < photos.length;
                     
                     return (
                       <div 
                         key={index}
-                        className={`aspect-square rounded-lg overflow-hidden flex items-center justify-center ${
+                        className={`aspect-square rounded-lg overflow-hidden relative flex items-center justify-center ${
                           hasPhoto ? '' : 'border-2 border-dashed border-princeton-orange/30'
                         }`}
                       >
                         {hasPhoto ? (
-                          <img 
-                            src={photos[index]} 
-                            alt={`User photo ${index + 1}`} 
-                            className="w-full h-full object-cover"
-                          />
+                          <>
+                            <img 
+                              src={photos[index].url} 
+                              alt={`User photo ${index + 1}`} 
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              onClick={() => handleRemovePhoto(index)}
+                              className="absolute top-1 right-1 bg-black/70 rounded-full p-1 text-white hover:bg-black"
+                            >
+                              <X size={16} />
+                            </button>
+                          </>
                         ) : (
                           <button
-                            onClick={handleAddPhoto}
-                            className="w-full h-full flex flex-col items-center justify-center text-princeton-white/50 hover:text-princeton-orange transition-colors"
+                            onClick={handleAddPhotoClick}
+                            disabled={photos.length >= MAX_PHOTOS}
+                            className={`w-full h-full flex flex-col items-center justify-center transition-colors ${
+                              photos.length >= MAX_PHOTOS 
+                                ? 'text-princeton-white/30 cursor-not-allowed' 
+                                : 'text-princeton-white/50 hover:text-princeton-orange'
+                            }`}
                           >
                             <Upload size={24} />
                             <span className="text-xs mt-1">Add</span>
@@ -210,7 +278,7 @@ const ProfileSetupPage: React.FC = () => {
               <button 
                 onClick={handleContinue}
                 className="w-full tiger-btn flex items-center justify-center gap-2"
-                disabled={step === 2 && !selectedVibe}
+                disabled={(step === 1 && (!name || !classYear)) || (step === 2 && !selectedVibe) || (step === 3 && photos.length === 0)}
               >
                 {step === 3 ? 'Complete Profile' : 'Continue'}
                 <ArrowRight size={18} />

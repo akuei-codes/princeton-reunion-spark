@@ -3,30 +3,57 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, LogOut, Settings, Edit, MapPin } from 'lucide-react';
 import Logo from '../components/Logo';
-
-// Sample user data - in a real app, this would come from authentication
-const currentUser = {
-  id: "current",
-  name: 'Alex',
-  classYear: '2023',
-  vibe: 'Down to Roam',
-  bio: 'Computer science major who knows all the secret spots on campus. Let me show you around!',
-  photos: [
-    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=600&h=800'
-  ],
-  interests: ['Coding', 'Music', 'Coffee', 'Hiking'],
-  clubs: ['Quadrangle', 'CS Club'],
-  major: 'Computer Science',
-};
+import { useQuery } from '@tanstack/react-query';
+import { getCurrentUser } from '../lib/api';
+import { supabase } from '@/lib/supabase';
+import { toast } from "sonner";
+import { useAuth } from '@/contexts/AuthContext';
 
 const UserProfile: React.FC = () => {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
+  const { signOut } = useAuth();
 
-  const handleLogout = () => {
-    // In a real app, this would handle logout
-    navigate('/');
+  // Fetch current user data
+  const { data: user, isLoading, error } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: getCurrentUser
+  });
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/');
+      toast.success("Logged out successfully");
+    } catch (error) {
+      console.error('Error logging out:', error);
+      toast.error("Error logging out");
+    }
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-black to-[#121212]">
+        <div className="text-princeton-white mb-4 animate-pulse">Loading profile...</div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-black to-[#121212]">
+        <div className="text-princeton-white mb-4">Error loading profile</div>
+        <button 
+          onClick={() => navigate('/swipe')}
+          className="px-4 py-2 bg-princeton-orange text-black rounded-lg"
+        >
+          Back to Swiping
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-black to-[#121212]">
@@ -51,12 +78,12 @@ const UserProfile: React.FC = () => {
           {/* Profile photo */}
           <div className="relative mb-6">
             <img 
-              src={currentUser.photos[0]} 
-              alt={currentUser.name}
+              src={user.photos[0]?.photo_url || '/placeholder.svg'}
+              alt={user.name}
               className="w-24 h-24 rounded-full object-cover border-2 border-princeton-orange"
             />
             <button 
-              onClick={() => setIsEditing(true)}
+              onClick={() => navigate('/profile-setup')}
               className="absolute bottom-0 right-0 w-8 h-8 bg-princeton-orange rounded-full flex items-center justify-center"
             >
               <Camera size={16} className="text-black" />
@@ -66,66 +93,76 @@ const UserProfile: React.FC = () => {
           {/* User info */}
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold text-princeton-white">
-              {currentUser.name}, <span className="text-princeton-orange">{currentUser.classYear}</span>
+              {user.name}, <span className="text-princeton-orange">{user.class_year}</span>
             </h1>
             <div className="flex items-center justify-center mt-1 text-sm text-princeton-white/70">
               <MapPin size={14} className="mr-1" />
-              <span>Frist Campus Center</span>
+              <span>{user.location || "Princeton Campus"}</span>
             </div>
-            <div className="mt-2 inline-block px-3 py-1 bg-princeton-orange/20 text-princeton-orange rounded-full text-sm">
-              {currentUser.vibe}
-            </div>
+            {user.vibe && (
+              <div className="mt-2 inline-block px-3 py-1 bg-princeton-orange/20 text-princeton-orange rounded-full text-sm">
+                {user.vibe}
+              </div>
+            )}
           </div>
         </div>
         
-        <div className="profile-card p-4 mb-6">
+        <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-princeton-white">About</h2>
             <button 
-              onClick={() => setIsEditing(true)}
+              onClick={() => navigate('/profile-setup')}
               className="text-princeton-orange"
             >
               <Edit size={18} />
             </button>
           </div>
-          <p className="text-princeton-white/80">{currentUser.bio}</p>
+          <p className="text-princeton-white/80">{user.bio || "No bio added yet"}</p>
         </div>
         
-        <div className="profile-card p-4 mb-6">
+        <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-princeton-white">Interests</h2>
             <button 
-              onClick={() => setIsEditing(true)}
+              onClick={() => navigate('/profile-setup')}
               className="text-princeton-orange"
             >
               <Edit size={18} />
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {currentUser.interests.map((interest, index) => (
-              <div 
-                key={index}
-                className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm"
-              >
-                {interest}
-              </div>
-            ))}
+            {user.interests && user.interests.length > 0 ? (
+              user.interests.map((interest, index) => (
+                <div 
+                  key={index}
+                  className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm"
+                >
+                  {interest.name}
+                </div>
+              ))
+            ) : (
+              <p className="text-princeton-white/60">No interests added yet</p>
+            )}
           </div>
         </div>
         
-        <div className="profile-card p-4 mb-6">
+        <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-princeton-white">Princeton Info</h2>
             <button 
-              onClick={() => setIsEditing(true)}
+              onClick={() => navigate('/profile-setup')}
               className="text-princeton-orange"
             >
               <Edit size={18} />
             </button>
           </div>
           <div className="space-y-2 text-princeton-white/80">
-            <div>Major: {currentUser.major}</div>
-            <div>Clubs: {currentUser.clubs.join(', ')}</div>
+            <div>Major: {user.major || "Not specified"}</div>
+            <div>
+              Clubs: {user.clubs && user.clubs.length > 0 
+                ? user.clubs.map(club => club.name).join(', ') 
+                : "None added yet"}
+            </div>
           </div>
         </div>
         

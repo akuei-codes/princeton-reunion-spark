@@ -2,6 +2,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
+import { toast } from "sonner";
+import { getCurrentUser, updateUserProfile } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
 
 type AuthContextType = {
   user: User | null;
@@ -13,6 +16,7 @@ type AuthContextType = {
   signInWithPhone: (phone: string) => Promise<{ data: any; error: any }>;
   verifyOtp: (phone: string, token: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<void>;
+  updateRole: (role: string) => Promise<boolean>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,6 +26,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileComplete, setProfileComplete] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const setData = async () => {
@@ -31,10 +36,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // If we have a user, check if their profile is complete
       if (session?.user) {
-        // In a real app, we'd fetch profile completion status from the database
-        // For now, we'll check localStorage as a demo
-        const hasProfile = localStorage.getItem('profileComplete') === 'true';
-        setProfileComplete(hasProfile);
+        try {
+          const userProfile = await getCurrentUser();
+          if (userProfile) {
+            setProfileComplete(userProfile.profile_complete || false);
+          }
+        } catch (error) {
+          console.error('Error getting user profile:', error);
+        }
       }
       
       setLoading(false);
@@ -47,9 +56,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // If user just logged in, check profile status
         if (session?.user) {
-          // In a real app, we'd fetch profile completion status from the database
-          const hasProfile = localStorage.getItem('profileComplete') === 'true';
-          setProfileComplete(hasProfile);
+          try {
+            // Invalidate any existing queries to ensure fresh data
+            queryClient.invalidateQueries({ queryKey: ['current-user'] });
+
+            // Check if user already exists in our database
+            const userProfile = await getCurrentUser();
+            
+            if (userProfile) {
+              setProfileComplete(userProfile.profile_complete || false);
+            } else if (session.user.user_metadata?.full_name) {
+              // If user doesn't exist in our DB but has metadata from OAuth,
+              // create basic profile automatically
+              const name = session.user.user_metadata.full_name;
+              await updateUserProfile({
+                name,
+                class_year: new Date().getFullYear().toString(),
+                role: 'alum',
+                profile_complete: false
+              });
+              setProfileComplete(false);
+            }
+          } catch (error) {
+            console.error('Error checking profile status:', error);
+          }
+        } else {
+          setProfileComplete(false);
         }
         
         setLoading(false);
@@ -61,11 +93,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [queryClient]);
 
   const handleSetProfileComplete = (complete: boolean) => {
     setProfileComplete(complete);
-    localStorage.setItem('profileComplete', complete ? 'true' : 'false');
+    if (complete) {
+      // Only update in database if setting to complete
+      updateUserProfile({ profile_complete: true })
+        .catch(err => {
+          console.error('Error updating profile completion status:', err);
+        });
+    }
   };
 
   const signInWithGoogle = async () => {
@@ -92,7 +130,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    // Clear any cached queries
+    queryClient.clear();
+    
+    // Sign out from supabase
     await supabase.auth.signOut();
+    
+    // Reset local state
+    setProfileComplete(false);
+  };
+  
+  const updateRole = async (role: string) => {
+    try {
+      const result = await updateUserProfile({
+        role: role as any
+      });
+      
+      return !!result;
+    } catch (error) {
+      console.error('Error updating role:', error);
+      return false;
+    }
   };
 
   const value = {
@@ -105,6 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signInWithPhone,
     verifyOtp,
     signOut,
+    updateRole
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

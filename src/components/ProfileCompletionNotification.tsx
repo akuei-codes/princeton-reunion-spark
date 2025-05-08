@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { X } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { getCurrentUser } from '@/lib/api';
 
 interface ProfileCompletionNotificationProps {
   className?: string;
@@ -14,6 +17,16 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
 }) => {
   const [dismissed, setDismissed] = useState(false);
   const navigate = useNavigate();
+  const { profileComplete } = useAuth();
+
+  // Get current user to check if profile is complete
+  const { data: currentUser } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: getCurrentUser,
+    staleTime: 60000, // 1 minute
+  });
+
+  const isProfileComplete = profileComplete || (currentUser && currentUser.profile_complete);
 
   const handleDismiss = () => {
     setDismissed(true);
@@ -26,7 +39,8 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
     navigate('/profile-setup');
   };
 
-  if (dismissed) {
+  // Don't show notification if dismissed or profile is already complete
+  if (dismissed || isProfileComplete) {
     return null;
   }
 

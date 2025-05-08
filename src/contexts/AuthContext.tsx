@@ -50,6 +50,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data.session) {
           console.log("Session found, loading user profile with ID:", data.session.user.id);
           try {
+            // Check for users table access first
+            const hasAccess = await checkUserTableAccess();
+            if (!hasAccess) {
+              toast.error("Database access issues detected. Please check your Supabase RLS policies.", {
+                duration: 7000,
+              });
+              setError(new Error("Database access issues detected"));
+            }
+            
             // First ensure the user profile exists
             await ensureUserProfile(data.session.user.id, data.session.user);
             await loadUserProfile(data.session.user.id);
@@ -118,6 +127,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // Helper function to check database access
+  const checkUserTableAccess = async (): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .select('id')
+        .limit(1);
+        
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  };
+
   // New function to ensure a user profile exists
   const ensureUserProfile = async (userId: string, authUser: any) => {
     try {
@@ -174,7 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
             if (createError) {
               console.error(`Error creating user profile (attempt ${retries + 1}):`, createError);
-              if (createError.message?.includes('duplicate key')) {
+              if (createError.message?.includes('duplicate key') || createError.code === '23505') {
                 // If it's a duplicate key error, the profile was probably created in a race condition
                 console.log("User profile already exists (created in parallel)");
                 success = true;

@@ -355,7 +355,7 @@ const ProfileSetupPage: React.FC = () => {
       const photoUrls: string[] = [];
       
       // Show upload progress toast
-      toast.loading("Uploading photos...");
+      const uploadToastId = toast.loading("Uploading photos...");
       
       // Try to upload photos to Cloudinary, but proceed even if some fail
       let successCount = 0;
@@ -377,6 +377,9 @@ const ProfileSetupPage: React.FC = () => {
         }
       }
       
+      // Dismiss the upload toast
+      toast.dismiss(uploadToastId);
+      
       // Provide feedback about uploads
       if (successCount === 0 && photos.length > 0) {
         // All uploads failed but we'll continue with profile creation
@@ -389,39 +392,96 @@ const ProfileSetupPage: React.FC = () => {
       
       console.log("Creating/updating user profile with photo URLs:", photoUrls);
       
-      // Create/update user profile with photo URLs
-      const { data: userData, error: userError } = await supabase
+      // First check if the user exists
+      const { data: existingUser } = await supabase
         .from('users')
-        .upsert({
-          auth_id: session.user.id,
-          name,
-          class_year: classYear,
-          role: 'current_student', 
-          vibe: vibeLabel,
-          gender: gender as UserGender,
-          gender_preference: genderPreference,
-          bio,
-          major,
-          building: selectedBuilding?.name,
-          location: selectedBuilding?.name,
-          latitude: selectedBuilding?.latitude,
-          longitude: selectedBuilding?.longitude,
-          photo_urls: photoUrls.length > 0 ? photoUrls : null,
-          profile_complete: true
-        })
-        .select()
-        .single();
+        .select('id')
+        .eq('auth_id', session.user.id)
+        .maybeSingle();
         
-      if (userError) {
-        console.error('Error creating user profile:', userError);
-        throw userError;
+      let userData;
+      
+      if (existingUser) {
+        // Update existing user
+        const { data: updatedUser, error: updateError } = await supabase
+          .from('users')
+          .update({
+            name,
+            class_year: classYear,
+            vibe: vibeLabel,
+            gender: gender as UserGender,
+            gender_preference: genderPreference,
+            bio,
+            major,
+            building: selectedBuilding?.name,
+            location: selectedBuilding?.name,
+            latitude: selectedBuilding?.latitude,
+            longitude: selectedBuilding?.longitude,
+            photo_urls: photoUrls.length > 0 ? photoUrls : null,
+            profile_complete: true
+          })
+          .eq('auth_id', session.user.id)
+          .select()
+          .single();
+          
+        if (updateError) {
+          console.error('Error updating user profile:', updateError);
+          throw updateError;
+        }
+        
+        userData = updatedUser;
+      } else {
+        // Create new user
+        const { data: newUser, error: createError } = await supabase
+          .from('users')
+          .insert({
+            auth_id: session.user.id,
+            name,
+            class_year: classYear,
+            role: 'current_student',
+            vibe: vibeLabel,
+            gender: gender as UserGender,
+            gender_preference: genderPreference,
+            bio,
+            major,
+            building: selectedBuilding?.name,
+            location: selectedBuilding?.name,
+            latitude: selectedBuilding?.latitude,
+            longitude: selectedBuilding?.longitude,
+            photo_urls: photoUrls.length > 0 ? photoUrls : null,
+            profile_complete: true
+          })
+          .select()
+          .single();
+          
+        if (createError) {
+          console.error('Error creating user profile:', createError);
+          throw createError;
+        }
+        
+        userData = newUser;
       }
       
       if (!userData) {
-        throw new Error('Failed to create user profile');
+        throw new Error('Failed to create or update user profile');
       }
       
-      console.log("User profile created:", userData.id);
+      console.log("User profile created/updated:", userData.id);
+      
+      // First clean up any existing interests/clubs to avoid duplicates
+      if (userData.id) {
+        // Delete existing interests
+        await supabase
+          .from('user_interests')
+          .delete()
+          .eq('user_id', userData.id);
+          
+        // Delete existing clubs
+        await supabase
+          .from('user_clubs')
+          .delete()
+          .eq('user_id', userData.id);
+      }
       
       // Process interests
       console.log("Processing interests:", selectedInterests);
@@ -452,11 +512,11 @@ const ProfileSetupPage: React.FC = () => {
             interestId = newInterest.id;
           }
           
-          // Link interest to user with user ID from the upsert response
+          // Link interest to user with user ID from the response
           const { error: linkError } = await supabase
             .from('user_interests')
             .insert({
-              user_id: userData.id, // Use the actual user ID from the database
+              user_id: userData.id,
               interest_id: interestId
             });
             
@@ -497,11 +557,11 @@ const ProfileSetupPage: React.FC = () => {
             clubId = newClub.id;
           }
           
-          // Link club to user with user ID from the upsert response
+          // Link club to user
           const { error: linkError } = await supabase
             .from('user_clubs')
             .insert({
-              user_id: userData.id, // Use the actual user ID from the database
+              user_id: userData.id,
               club_id: clubId
             });
             
@@ -517,7 +577,7 @@ const ProfileSetupPage: React.FC = () => {
       setProfileComplete(true);
       
       toast.success("Profile completed successfully!");
-      navigate('/swipe');
+      navigate('/dashboard');
       
     } catch (error) {
       console.error('Error completing profile:', error);

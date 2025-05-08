@@ -186,6 +186,32 @@ const SwipePage: React.FC = () => {
     setCurrentIndex(prevIndex => prevIndex + 1);
   };
 
+  // Handle button swipe
+  const handleButtonSwipe = (direction: 'left' | 'right') => {
+    if (!potentialMatches || currentIndex >= potentialMatches.length) return;
+    
+    const user = potentialMatches[currentIndex];
+    const swipeMutation = {
+      mutate: ({ userId, direction }: { userId: string, direction: 'left' | 'right' }) => {
+        recordSwipe(userId, direction).then(isMatch => {
+          if (isMatch) {
+            toast.success("It's a match! 🎉", {
+              action: {
+                label: "View Matches",
+                onClick: () => navigate('/matches')
+              }
+            });
+          }
+        }).catch(() => {
+          toast.error("Error recording swipe");
+        });
+      }
+    };
+    
+    swipeMutation.mutate({ userId: user.id, direction });
+    setCurrentIndex(prevIndex => prevIndex + 1);
+  };
+
   // Show empty state for loading
   if (isLoading) {
     return (

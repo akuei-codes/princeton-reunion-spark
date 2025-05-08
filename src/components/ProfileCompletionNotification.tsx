@@ -18,7 +18,7 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
 }) => {
   const [dismissed, setDismissed] = useState(false);
   const navigate = useNavigate();
-  const { profileComplete } = useAuth();
+  const { isProfileComplete } = useAuth(); // Changed from profileComplete to isProfileComplete
 
   // Get current user to check if profile is complete
   const { data: currentUser } = useQuery<UserWithRelations | null>({
@@ -26,7 +26,7 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
     queryFn: getCurrentUser
   });
 
-  const isProfileComplete = profileComplete || (currentUser && currentUser.profile_complete);
+  const profileComplete = isProfileComplete || (currentUser && currentUser.profile_complete);
 
   const handleDismiss = () => {
     setDismissed(true);
@@ -40,7 +40,7 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
   };
 
   // Don't show notification if dismissed or profile is already complete
-  if (dismissed || isProfileComplete) {
+  if (dismissed || profileComplete) {
     return null;
   }
 

@@ -14,6 +14,12 @@ interface AuthContextType {
   loading: boolean;
   user: any | null;
   isProfileComplete: boolean;
+  // Add missing properties referenced in components
+  profileComplete: boolean;
+  setProfileComplete: (value: boolean) => void;
+  signInWithGoogle?: () => Promise<void>;
+  signInWithPhone?: (phoneNumber: string) => Promise<void>;
+  verifyOtp?: (phoneNumber: string, otp: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -177,6 +183,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate('/');
   };
 
+  // Create stub methods for the missing methods
+  const signInWithGoogle = async () => {
+    console.warn("signInWithGoogle is not implemented");
+  };
+
+  const signInWithPhone = async (phoneNumber: string) => {
+    console.warn("signInWithPhone is not implemented", phoneNumber);
+  };
+
+  const verifyOtp = async (phoneNumber: string, otp: string) => {
+    console.warn("verifyOtp is not implemented", phoneNumber, otp);
+  };
+
   return (
     <AuthContext.Provider value={{ 
       session, 
@@ -185,7 +204,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signOut, 
       loading, 
       user, 
-      isProfileComplete 
+      isProfileComplete,
+      // Add the missing properties
+      profileComplete: isProfileComplete,
+      setProfileComplete: setIsProfileComplete,
+      signInWithGoogle,
+      signInWithPhone,
+      verifyOtp
     }}>
       {children}
     </AuthContext.Provider>

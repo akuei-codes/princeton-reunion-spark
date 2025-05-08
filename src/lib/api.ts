@@ -498,7 +498,7 @@ export const getUserMatches = async () => {
         .maybeSingle();
       
       // Check for unread messages
-      const { data: unreadCount } = await supabase
+      const { count: unreadCount } = await supabase
         .from('messages')
         .select('id', { count: 'exact', head: true })
         .eq('match_id', match.id)

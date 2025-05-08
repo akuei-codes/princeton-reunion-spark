@@ -1,4 +1,6 @@
+
 import { supabase } from './supabase';
+import { uploadToCloudinary } from './cloudinary';
 import { UserGender, GenderPreference } from '@/types/database';
 
 export const getCurrentUser = async () => {
@@ -12,7 +14,6 @@ export const getCurrentUser = async () => {
     .from('users')
     .select(`
       *,
-      photos:user_photos(*),
       interests:user_interests(name:interests(*)),
       clubs:user_clubs(name:clubs(*))
     `)
@@ -56,52 +57,48 @@ export const updateUserProfile = async ({
   return data;
 };
 
-export const uploadUserPhoto = async (file: File, position: number, freshUserId?: string) => {
+export const uploadUserPhoto = async (file: File, position: number) => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('No active session');
     
-    // If no freshUserId was provided, get it now
-    let userId = freshUserId;
-    if (!userId) {
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('auth_id', session.user.id)
-        .single();
+    // Get the current user ID
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, photo_urls')
+      .eq('auth_id', session.user.id)
+      .single();
         
-      if (userError || !userData) {
-        throw new Error('Could not validate user');
-      }
-      userId = userData.id;
+    if (userError || !userData) {
+      throw new Error('Could not validate user');
     }
     
-    // Generate a unique file name
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}/${Date.now()}.${fileExt}`;
+    // Upload to Cloudinary
+    const publicUrl = await uploadToCloudinary(file);
     
-    // Upload the file
-    const { error: uploadError } = await supabase.storage
-      .from('user-photos')
-      .upload(fileName, file);
-      
-    if (uploadError) throw uploadError;
+    // Update the photo_urls array in the users table
+    const updatedPhotoUrls = [...(userData.photo_urls || [])];
     
-    // Get the public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('user-photos')
-      .getPublicUrl(fileName);
+    // Ensure the position exists in the array
+    while (updatedPhotoUrls.length <= position) {
+      updatedPhotoUrls.push('');
+    }
+    
+    // Update the URL at the specified position
+    updatedPhotoUrls[position] = publicUrl;
+    
+    // Filter out any empty strings
+    const filteredUrls = updatedPhotoUrls.filter(url => url);
+    
+    // Update the user record
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        photo_urls: filteredUrls
+      })
+      .eq('id', userData.id);
       
-    // Save to the database
-    const { error: dbError } = await supabase
-      .from('user_photos')
-      .insert({
-        user_id: userId,
-        photo_url: publicUrl,
-        position
-      });
-      
-    if (dbError) throw dbError;
+    if (updateError) throw updateError;
     
     return publicUrl;
   } catch (error) {
@@ -110,23 +107,40 @@ export const uploadUserPhoto = async (file: File, position: number, freshUserId?
   }
 };
 
-export const deleteUserPhoto = async (photoId: string) => {
+export const deleteUserPhoto = async (photoUrl: string) => {
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session) {
     throw new Error('No active session');
   }
 
-  const { data, error } = await supabase
-    .from('user_photos')
-    .delete()
-    .eq('id', photoId);
+  // Get current photo URLs
+  const { data: userData, error: userError } = await supabase
+    .from('users')
+    .select('id, photo_urls')
+    .eq('auth_id', session.user.id)
+    .single();
 
-  if (error) {
-    throw error;
+  if (userError || !userData) {
+    throw new Error('Could not validate user');
   }
 
-  return data;
+  // Filter out the URL to delete
+  const updatedPhotoUrls = (userData.photo_urls || []).filter(url => url !== photoUrl);
+
+  // Update the user record
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({
+      photo_urls: updatedPhotoUrls
+    })
+    .eq('id', userData.id);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  return true;
 };
 
 export const updateUserInterests = async (interests: string[]) => {
@@ -285,4 +299,23 @@ export const updateUserClubs = async (clubs: string[]) => {
   }
 
   return true;
+};
+
+export const getUserById = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select(`
+      *,
+      interests:user_interests(name:interests(*)),
+      clubs:user_clubs(name:clubs(*))
+    `)
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching user by ID:', error);
+    return null;
+  }
+
+  return data;
 };

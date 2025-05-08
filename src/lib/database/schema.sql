@@ -24,18 +24,10 @@ CREATE TABLE users (
   building TEXT,
   latitude FLOAT,
   longitude FLOAT,
+  photo_urls TEXT[] DEFAULT '{}',
   profile_complete BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create user photos table
-CREATE TABLE user_photos (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
-  photo_url TEXT NOT NULL,
-  position INTEGER NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create user interests table
@@ -200,7 +192,6 @@ EXECUTE PROCEDURE create_match_on_mutual_swipe();
 
 -- Add RLS (Row Level Security) policies
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_photos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE swipes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
@@ -219,26 +210,6 @@ CREATE POLICY users_update_policy ON users
 CREATE POLICY users_insert_policy ON users
   FOR INSERT
   WITH CHECK (auth_id = auth.uid()::text); -- Cast uuid to text for comparison
-
--- Policy for photos table
-CREATE POLICY photos_select_policy ON user_photos
-  FOR SELECT
-  USING (TRUE); -- Allow reading all photos
-
--- Create policy to allow users to update their own photos
-CREATE POLICY update_own_photos ON user_photos
-  FOR UPDATE
-  USING (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()::text));
-
--- Create policy to allow users to insert their own photos
-CREATE POLICY insert_own_photos ON user_photos
-  FOR INSERT
-  WITH CHECK (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()::text));
-
--- Create policy to allow users to delete their own photos
-CREATE POLICY delete_own_photos ON user_photos
-  FOR DELETE
-  USING (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()::text));
 
 -- Policy for swipes table
 CREATE POLICY swipes_insert_policy ON swipes
@@ -280,65 +251,3 @@ CREATE POLICY messages_insert_policy ON messages
       user_id_2 IN (SELECT id FROM users WHERE auth_id = auth.uid()::text)
     )
   );
-
--- STORAGE POLICIES
-
--- Enable RLS on storage.buckets
-ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
-
--- Storage bucket creation policy (allows authenticated users to create buckets)
-CREATE POLICY "Allow authenticated users to create buckets" 
-ON storage.buckets 
-FOR INSERT 
-TO authenticated 
-WITH CHECK (true);
-
--- Storage bucket view policy (allows anyone to view bucket metadata)
-CREATE POLICY "Allow public to view buckets" 
-ON storage.buckets 
-FOR SELECT 
-TO public 
-USING (true);
-
--- Enable RLS on storage.objects
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-
--- User photos bucket policies
--- INSERT: Allow users to upload only to their own folder
-CREATE POLICY "Allow insert into own folder"
-ON storage.objects
-FOR INSERT
-TO authenticated
-WITH CHECK (
-  bucket_id = 'user-photos'
-  AND (storage.foldername(name))::text = auth.uid()::text
-);
-
--- SELECT: Allow public read access to all photos
-CREATE POLICY "Allow public read access"
-ON storage.objects
-FOR SELECT
-TO public
-USING (
-  bucket_id = 'user-photos'
-);
-
--- UPDATE: Allow users to update only their own photos
-CREATE POLICY "Allow update of own files"
-ON storage.objects
-FOR UPDATE
-TO authenticated
-USING (
-  bucket_id = 'user-photos'
-  AND (storage.foldername(name))::text = auth.uid()::text
-);
-
--- DELETE: Allow users to delete only their own photos
-CREATE POLICY "Allow delete of own files"
-ON storage.objects
-FOR DELETE
-TO authenticated
-USING (
-  bucket_id = 'user-photos'
-  AND (storage.foldername(name))::text = auth.uid()::text
-);

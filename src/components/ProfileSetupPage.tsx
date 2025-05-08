@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
@@ -5,6 +6,7 @@ import { ArrowLeft, ArrowRight, Upload, X, MapPin, Loader2, Check } from 'lucide
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 import { UserGender, GenderPreference, UserVibe, CampusBuilding } from '@/types/database';
 
 type Step = 'basics' | 'photos' | 'interests' | 'gender' | 'location' | 'review';
@@ -346,8 +348,35 @@ const ProfileSetupPage: React.FC = () => {
 
       // Get the selected vibe label
       const vibeLabel = vibeOptions.find(v => v.id === selectedVibe)?.label;
+
+      // Initialize photo uploads
+      const photoUrls: string[] = [];
       
-      // Create/update user profile
+      // Upload photos to Cloudinary first
+      const uploadPromises = photos.map(async (photo) => {
+        try {
+          const cloudinaryUrl = await uploadToCloudinary(photo.file);
+          photoUrls.push(cloudinaryUrl);
+          return { success: true };
+        } catch (err) {
+          console.error('Error uploading to Cloudinary:', err);
+          return { success: false };
+        }
+      });
+      
+      // Wait for all photo uploads to complete
+      const uploadResults = await Promise.all(uploadPromises);
+      const successfulUploads = uploadResults.filter(result => result.success).length;
+      
+      if (successfulUploads < photos.length) {
+        toast.warning(`Only ${successfulUploads} of ${photos.length} photos were uploaded successfully.`);
+        if (successfulUploads === 0) {
+          toast.error('Failed to upload any photos. Please try again.');
+          return;
+        }
+      }
+      
+      // Create/update user profile with photo URLs
       const { data: userData, error: userError } = await supabase
         .from('users')
         .upsert({
@@ -364,6 +393,7 @@ const ProfileSetupPage: React.FC = () => {
           location: selectedBuilding?.name,
           latitude: selectedBuilding?.latitude,
           longitude: selectedBuilding?.longitude,
+          photo_urls: photoUrls,
           profile_complete: true
         })
         .select()
@@ -378,10 +408,7 @@ const ProfileSetupPage: React.FC = () => {
         throw new Error('Failed to create user profile');
       }
       
-      console.log("session.user.id", session.user.id);
-      console.log("userData.id", userData.id);
-      
-      // Get a fresh copy of the user ID to ensure RLS works properly
+      // Get a fresh copy of the user ID to ensure consistency
       const { data: freshUserData, error: idError } = await supabase
         .from('users')
         .select('id')
@@ -394,78 +421,7 @@ const ProfileSetupPage: React.FC = () => {
         return;
       }
       
-      console.log("freshUserData.id", freshUserData.id);
-      
-      // Import ensureBucketExists from supabase utility
-      const { ensureBucketExists } = await import('@/lib/supabase');
-      
-      // Ensure the bucket exists before trying to upload
-      const bucketName = 'user-photos';
-      const bucketReady = await ensureBucketExists(bucketName);
-      
-      if (!bucketReady) {
-        toast.error('Unable to prepare storage. Please try again later.');
-        return;
-      }
-      
-      // Upload photos using the freshly fetched user ID
-      const photoUploadPromises = photos.map(async (photo, i) => {
-        try {
-          const { file } = photo;
-          const fileExt = file.name.split('.').pop();
-          const filePath = `${freshUserData.id}/${Date.now()}-${i}.${fileExt}`;
-          
-          // Upload to storage
-          const { error: uploadError, data: uploadData } = await supabase
-            .storage
-            .from(bucketName)
-            .upload(filePath, file, {
-              upsert: true,
-              cacheControl: '3600'
-            });
-            
-          if (uploadError) {
-            console.error('Error uploading photo:', uploadError);
-            throw uploadError;
-          }
-          
-          // Get public URL
-          const { data: { publicUrl } } = supabase
-            .storage
-            .from(bucketName)
-            .getPublicUrl(filePath);
-            
-          // Add to photos table using the fresh user ID
-          const { error: photoError } = await supabase
-            .from('user_photos')
-            .insert({
-              user_id: freshUserData.id,
-              photo_url: publicUrl,
-              position: i
-            });
-            
-          if (photoError) {
-            console.error('Error creating photo record:', photoError);
-            throw photoError;
-          }
-          
-          return { success: true };
-        } catch (err) {
-          console.error('Error in photo upload process:', err);
-          toast.error(`Failed to upload photo ${i+1}`);
-          return { success: false };
-        }
-      });
-      
-      // Wait for all photo uploads to complete
-      const photoResults = await Promise.all(photoUploadPromises);
-      const successfulUploads = photoResults.filter(result => result.success).length;
-      
-      if (successfulUploads < photos.length) {
-        toast.warning(`Uploaded ${successfulUploads} of ${photos.length} photos. You can add more later.`);
-      }
-      
-      // Process interests - use freshUserData.id here too
+      // Process interests
       for (const interest of selectedInterests) {
         // Check if interest exists
         let interestId = null;
@@ -506,7 +462,7 @@ const ProfileSetupPage: React.FC = () => {
         }
       }
       
-      // Process clubs - use freshUserData.id here too
+      // Process clubs
       for (const club of selectedClubs) {
         // Check if club exists
         let clubId = null;
@@ -882,4 +838,196 @@ const ProfileSetupPage: React.FC = () => {
                       ))}
                     </div>
                     
-                    <div className="max-h-4
+                    <div className="max-h-40 overflow-y-auto bg-secondary/50 rounded-lg p-2">
+                      <div className="flex flex-wrap gap-2">
+                        {availableClubs
+                          .filter(club => !selectedClubs.includes(club))
+                          .map((club) => (
+                            <button
+                              key={club}
+                              onClick={() => toggleClub(club)}
+                              disabled={selectedClubs.length >= MAX_CLUBS}
+                              className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm hover:bg-secondary/80 disabled:opacity-50"
+                            >
+                              {club}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {currentStep === 'location' && (
+              <div className="space-y-6">
+                <div className="text-center mb-4">
+                  <h2 className="text-xl font-bold text-princeton-white mb-2">Your Location</h2>
+                  <p className="text-princeton-white/70 text-sm">
+                    Select your current location on campus
+                  </p>
+                </div>
+                
+                <div className="flex justify-center mb-4">
+                  <button
+                    onClick={findNearestBuilding}
+                    disabled={isLocating}
+                    className="flex items-center gap-2 px-4 py-2 bg-princeton-orange rounded-lg text-black hover:bg-princeton-orange/90 transition-colors disabled:opacity-70"
+                  >
+                    {isLocating ? <Loader2 className="animate-spin" size={18} /> : <MapPin size={18} />}
+                    <span>{isLocating ? 'Finding Location...' : 'Use Current Location'}</span>
+                  </button>
+                </div>
+                
+                {locationError && (
+                  <div className="text-red-400 text-sm text-center mb-4">
+                    {locationError}
+                  </div>
+                )}
+                
+                <div className="max-h-80 overflow-y-auto bg-secondary/80 rounded-lg">
+                  {buildings.map((building) => (
+                    <button
+                      key={building.id}
+                      onClick={() => setSelectedBuilding(building)}
+                      className={`w-full flex items-center justify-between p-3 border-b border-princeton-white/10 transition-colors ${
+                        selectedBuilding?.id === building.id
+                          ? 'bg-princeton-orange/20'
+                          : 'hover:bg-secondary'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <MapPin size={18} className="text-princeton-orange/80" />
+                        <span className="text-princeton-white">{building.name}</span>
+                      </div>
+                      
+                      {selectedBuilding?.id === building.id && (
+                        <Check size={18} className="text-princeton-orange" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {currentStep === 'review' && (
+              <div className="space-y-6">
+                <div className="text-center mb-4">
+                  <h2 className="text-xl font-bold text-princeton-white mb-2">Review Your Profile</h2>
+                  <p className="text-princeton-white/70 text-sm">
+                    Take a moment to review your information before finalizing
+                  </p>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="bg-secondary/50 rounded-lg p-4">
+                    <div className="flex gap-4 items-center">
+                      <div className="w-16 h-16 rounded-full overflow-hidden">
+                        <img 
+                          src={photos.length > 0 ? photos[0].url : '/placeholder.svg'} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-princeton-white">{name}</h3>
+                        <div className="text-sm text-princeton-white/70">Class of {classYear}</div>
+                        <div className="text-sm text-princeton-white/70">
+                          {selectedBuilding?.name || 'No location set'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-secondary/50 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-princeton-white/70 mb-2">Basic Information</h3>
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-princeton-white/60">Major:</span>
+                        <span className="text-princeton-white">{major}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-princeton-white/60">Gender:</span>
+                        <span className="text-princeton-white">{gender}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-princeton-white/60">Interested in:</span>
+                        <span className="text-princeton-white">
+                          {genderPreference === 'everyone' 
+                            ? 'Everyone' 
+                            : genderPreference === 'male' ? 'Men' : 'Women'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-princeton-white/60">Vibe:</span>
+                        <span className="text-princeton-white">
+                          {vibeOptions.find(v => v.id === selectedVibe)?.label || 'Not set'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-secondary/50 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-princeton-white/70 mb-2">Photos</h3>
+                    <div className="grid grid-cols-6 gap-1">
+                      {photos.map((photo, i) => (
+                        <div key={i} className="aspect-square rounded overflow-hidden">
+                          <img src={photo.url} alt={`Photo ${i+1}`} className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-secondary/50 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-princeton-white/70 mb-2">Interests & Clubs</h3>
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-princeton-white/60 text-xs mb-1">Interests:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedInterests.map((interest, i) => (
+                            <div key={i} className="px-2 py-1 bg-secondary rounded-full text-princeton-white/90 text-xs">
+                              {interest}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-princeton-white/60 text-xs mb-1">Clubs:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedClubs.map((club, i) => (
+                            <div key={i} className="px-2 py-1 bg-secondary rounded-full text-princeton-white/90 text-xs">
+                              {club}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-secondary/50 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-princeton-white/70 mb-2">Bio</h3>
+                    <div className="text-princeton-white/90">
+                      {bio || 'No bio provided'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="mt-8">
+              <button
+                onClick={handleContinue}
+                className="w-full py-3 bg-princeton-orange rounded-lg text-black font-medium flex items-center justify-center gap-2 hover:bg-princeton-orange/90 transition-colors"
+              >
+                <span>{currentStep === 'review' ? 'Complete Profile' : 'Continue'}</span>
+                <ArrowRight size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default ProfileSetupPage;

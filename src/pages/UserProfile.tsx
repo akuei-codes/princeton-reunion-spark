@@ -50,7 +50,6 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
             .from('users')
             .select(`
               *,
-              photos:user_photos(*),
               interests:user_interests(name:interests(*)),
               clubs:user_clubs(name:clubs(*))
             `)
@@ -68,8 +67,8 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
       setMajor(user.major || '');
       setGender(user.gender || '');
       setGenderPreference(user.gender_preference || 'everyone');
-      setSelectedInterests(user.interests.map(i => i.name));
-      setSelectedClubs(user.clubs.map(c => c.name));
+      setSelectedInterests(user.interests.map(i => i.name.name));
+      setSelectedClubs(user.clubs.map(c => c.name.name));
     }
   }, [user, isViewingOthersProfile]);
 
@@ -133,31 +132,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
     }
     
     try {
-      // Get current session to access user ID
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('You must be logged in');
-        return;
-      }
-      
-      // Get a fresh copy of the user ID to ensure RLS works properly
-      const { data: freshUserData, error: idError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('auth_id', session.user.id)
-        .single();
-        
-      if (idError || !freshUserData) {
-        console.error('Error getting fresh user ID:', idError);
-        toast.error('Could not validate user. Please try again.');
-        return;
-      }
-      
       // Calculate the next position
-      const position = user?.photos?.length || 0;
+      const position = user?.photo_urls?.length || 0;
       
-      // Upload the photo using the fresh user ID
-      await uploadUserPhoto(file, position, freshUserData.id);
+      // Upload the photo
+      await uploadUserPhoto(file, position);
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
       toast.success('Photo added successfully');
     } catch (error) {
@@ -169,9 +148,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
     e.target.value = '';
   };
   
-  const handleDeletePhoto = async (photoId: string) => {
+  const handleDeletePhoto = async (photoUrl: string) => {
     try {
-      await deleteUserPhoto(photoId);
+      await deleteUserPhoto(photoUrl);
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
       toast.success('Photo deleted');
     } catch (error) {
@@ -242,6 +221,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
     setNewInterest('');
   };
 
+  // Get the profile photo URL
+  const profilePhotoUrl = user?.photo_urls?.[0] || '/placeholder.svg';
+
   // Loading state
   if (isLoading) {
     return (
@@ -286,7 +268,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
             {/* Profile photo */}
             <div className="relative mb-6">
               <img 
-                src={user.photos[0]?.photo_url || '/placeholder.svg'}
+                src={profilePhotoUrl}
                 alt={user.name}
                 className="w-24 h-24 rounded-full object-cover border-2 border-princeton-orange"
               />
@@ -329,7 +311,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
                     key={index}
                     className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm"
                   >
-                    {interest.name}
+                    {interest.name.name}
                   </div>
                 ))
               ) : (
@@ -356,7 +338,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
                 <Users className="text-princeton-orange mt-1" size={18} />
                 <div>
                   Clubs: {user.clubs && user.clubs.length > 0 
-                    ? user.clubs.map(club => club.name).join(', ') 
+                    ? user.clubs.map(club => club.name.name).join(', ') 
                     : "None added yet"}
                 </div>
               </div>
@@ -364,14 +346,14 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
           </div>
           
           {/* Photos */}
-          {user.photos && user.photos.length > 0 && (
+          {user.photo_urls && user.photo_urls.length > 0 && (
             <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
               <h2 className="text-lg font-semibold text-princeton-white mb-3">Photos</h2>
               <div className="grid grid-cols-3 gap-2">
-                {user.photos.map((photo, index) => (
-                  <div className="aspect-square" key={photo.id}>
+                {user.photo_urls.map((photoUrl, index) => (
+                  <div className="aspect-square" key={index}>
                     <img 
-                      src={photo.photo_url} 
+                      src={photoUrl} 
                       alt={`${user.name} photo ${index + 1}`} 
                       className="w-full h-full object-cover rounded-lg"
                     />
@@ -427,7 +409,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
           {/* Profile photo */}
           <div className="relative mb-6">
             <img 
-              src={user.photos[0]?.photo_url || '/placeholder.svg'}
+              src={profilePhotoUrl}
               alt={user.name}
               className="w-24 h-24 rounded-full object-cover border-2 border-princeton-orange"
             />
@@ -637,7 +619,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
                     key={index}
                     className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm"
                   >
-                    {interest.name}
+                    {interest.name.name}
                   </div>
                 ))
               ) : (
@@ -720,7 +702,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
                 <Users className="text-princeton-orange mt-1" size={18} />
                 <div>
                   Clubs: {user.clubs && user.clubs.length > 0 
-                    ? user.clubs.map(club => club.name).join(', ') 
+                    ? user.clubs.map(club => club.name.name).join(', ') 
                     : "None added yet"}
                 </div>
               </div>
@@ -740,17 +722,17 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
             </button>
           </div>
           
-          {user.photos && user.photos.length > 0 ? (
+          {user.photo_urls && user.photo_urls.length > 0 ? (
             <div className="grid grid-cols-3 gap-2">
-              {user.photos.map((photo, index) => (
-                <div className="relative aspect-square" key={photo.id}>
+              {user.photo_urls.map((photoUrl, index) => (
+                <div className="relative aspect-square" key={index}>
                   <img 
-                    src={photo.photo_url} 
+                    src={photoUrl} 
                     alt={`${user.name} photo ${index + 1}`} 
                     className="w-full h-full object-cover rounded-lg"
                   />
                   <button
-                    onClick={() => handleDeletePhoto(photo.id)}
+                    onClick={() => handleDeletePhoto(photoUrl)}
                     className="absolute top-1 right-1 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center text-white hover:bg-red-500"
                   >
                     <X size={14} />
@@ -758,7 +740,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
                 </div>
               ))}
               
-              {[...Array(Math.max(0, 6 - user.photos.length))].map((_, index) => (
+              {[...Array(Math.max(0, 6 - (user.photo_urls?.length || 0)))].map((_, index) => (
                 <button
                   key={`empty-${index}`}
                   onClick={() => fileInputRef.current?.click()}

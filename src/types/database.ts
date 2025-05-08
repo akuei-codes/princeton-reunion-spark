@@ -22,18 +22,11 @@ export interface User {
   building?: string;
   latitude?: number;
   longitude?: number;
+  photo_urls?: string[];
   profile_complete: boolean;
   created_at: string;
   updated_at: string;
   unread?: boolean; // Add this for UI display
-}
-
-export interface UserPhoto {
-  id: string;
-  user_id: string;
-  photo_url: string;
-  position: number;
-  created_at: string;
 }
 
 export interface Interest {
@@ -95,9 +88,9 @@ export interface HotZoneEvent {
 }
 
 export interface UserWithRelations extends User {
-  photos: UserPhoto[];
-  interests: Interest[];
-  clubs: Club[];
+  photos?: string[]; // Changed from UserPhoto[] to string[]
+  interests: { name: Interest }[];
+  clubs: { name: Club }[];
 }
 
 export interface MatchWithUserAndLastMessage {

@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import { Heart, X, MessageCircle, User, Map } from 'lucide-react';
+import AppLayout from './AppLayout';
 
 // Sample user data - in a real app, this would come from a backend
 const sampleUsers = [
@@ -69,14 +70,12 @@ const SwipePage: React.FC = () => {
     }, 300);
   };
 
-  const navItems = [
-    { icon: <Heart size={24} />, label: 'Matches', path: '/matches' },
-    { icon: <User size={24} />, label: 'Profile', path: '/profile' },
-    { icon: <Map size={24} />, label: 'Hot Zones', path: '/zones' },
-  ];
+  const handleViewProfile = () => {
+    navigate(`/profile/${currentUser.id}`);
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-black to-[#121212]">
+    <AppLayout matchesCount={matches.length}>
       <header className="container mx-auto px-4 py-4 flex justify-center">
         <Logo />
       </header>
@@ -93,6 +92,7 @@ const SwipePage: React.FC = () => {
                 ? 'animate-swipe-left' 
                 : ''
             }`}
+            onClick={handleViewProfile}
           >
             <div className="w-full h-full flex flex-col">
               {/* Photo */}
@@ -142,39 +142,15 @@ const SwipePage: React.FC = () => {
         
         {/* Match notification */}
         {matches.length > 0 && (
-          <div className="absolute top-4 right-4 bg-princeton-orange text-black px-3 py-2 rounded-full animate-pulse font-bold">
+          <button
+            onClick={() => navigate('/matches')} 
+            className="absolute top-4 right-4 bg-princeton-orange text-black px-3 py-2 rounded-full animate-pulse font-bold"
+          >
             {matches.length} {matches.length === 1 ? 'Match' : 'Matches'}!
-          </div>
+          </button>
         )}
       </main>
-      
-      {/* Bottom navigation */}
-      <nav className="bg-secondary border-t border-princeton-orange/20">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex justify-around">
-            {navItems.map((item, index) => (
-              <button
-                key={index}
-                onClick={() => item.path === '/matches' && matches.length > 0 ? navigate(item.path) : null}
-                className={`flex flex-col items-center ${
-                  item.path === '/matches' && matches.length > 0 
-                    ? 'text-princeton-orange' 
-                    : 'text-princeton-white/60 hover:text-princeton-white'
-                } transition-colors`}
-              >
-                {item.icon}
-                <span className="text-xs mt-1">{item.label}</span>
-                {item.path === '/matches' && matches.length > 0 && (
-                  <div className="absolute top-2 right-1/4 w-4 h-4 bg-princeton-orange rounded-full flex items-center justify-center text-[10px] text-black font-bold">
-                    {matches.length}
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      </nav>
-    </div>
+    </AppLayout>
   );
 };
 

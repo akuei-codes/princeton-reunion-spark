@@ -9,6 +9,12 @@ import SignupPage from "./components/SignupPage";
 import ProfileSetupPage from "./components/ProfileSetupPage";
 import SwipePage from "./components/SwipePage";
 import NotFound from "./pages/NotFound";
+import Matches from "./pages/Matches";
+import Chat from "./pages/Chat";
+import Profile from "./pages/Profile";
+import UserProfile from "./pages/UserProfile";
+import Settings from "./pages/Settings";
+import HotZones from "./pages/HotZones";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +29,12 @@ const App = () => (
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/profile-setup" element={<ProfileSetupPage />} />
           <Route path="/swipe" element={<SwipePage />} />
+          <Route path="/matches" element={<Matches />} />
+          <Route path="/chat/:id" element={<Chat />} />
+          <Route path="/profile/:id" element={<Profile />} />
+          <Route path="/profile" element={<UserProfile />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/zones" element={<HotZones />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

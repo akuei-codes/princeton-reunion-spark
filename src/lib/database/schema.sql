@@ -113,6 +113,44 @@ CREATE TABLE hot_zone_events (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Princeton campus buildings for location selection
+CREATE TABLE campus_buildings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT UNIQUE NOT NULL,
+  latitude FLOAT NOT NULL,
+  longitude FLOAT NOT NULL
+);
+
+-- Add some Princeton buildings with their coordinates
+INSERT INTO campus_buildings (name, latitude, longitude) VALUES
+  ('1901 Hall', 40.3461, -74.6551),
+  ('Brown Hall', 40.3458, -74.6545),
+  ('Frist Campus Center', 40.3470, -74.6548),
+  ('Princeton Stadium', 40.3479, -74.6507),
+  ('Lewis Library', 40.3458, -74.6529),
+  ('Nassau Hall', 40.3489, -74.6579),
+  ('Firestone Library', 40.3496, -74.6576),
+  ('Whitman College', 40.3432, -74.6565),
+  ('Forbes College', 40.3421, -74.6603),
+  ('Princeton University Chapel', 40.3483, -74.6551),
+  ('Friend Center', 40.3505, -74.6521);
+
+-- Insert some sample data for testing
+INSERT INTO interests (name) VALUES 
+  ('Journalism'), ('Art'), ('Film'), ('Dancing'),
+  ('Finance'), ('Running'), ('Beer Pong'), ('Travel'),
+  ('Coding'), ('Music'), ('Coffee'), ('Hiking'),
+  ('Reading'), ('Photography'), ('Gaming'), ('Cooking'),
+  ('Sports'), ('Politics'), ('Science'), ('Math'),
+  ('Theater');
+
+INSERT INTO clubs (name) VALUES
+  ('Terrace'), ('Daily Princetonian'), ('Tower'), ('Investment Club'),
+  ('Quadrangle'), ('CS Club'), ('Tiger Inn'), ('Cannon Club'),
+  ('Debate Club'), ('Drama Club'), ('Singing Club'), ('Robotics Team'),
+  ('Chess Club'), ('Orchestra'), ('Choir'), ('Dance Company'),
+  ('Princeton Review');
+
 -- Create functions and triggers
 
 -- Function to update updated_at field
@@ -168,38 +206,55 @@ ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
 -- Policy for users table
-CREATE POLICY users_policy ON users
-  USING (auth_id = current_user OR TRUE); -- Allow read of all users, but modify only own record
+CREATE POLICY users_select_policy ON users
+  FOR SELECT
+  USING (TRUE); -- Allow read of all users
+
+-- Policy for users table - update own record
+CREATE POLICY users_update_policy ON users
+  FOR UPDATE
+  USING (auth.uid() = auth_id); -- Only update own record
+
+-- Policy for users table - insert own record
+CREATE POLICY users_insert_policy ON users
+  FOR INSERT
+  WITH CHECK (auth.uid() = auth_id); -- Only insert own record
 
 -- Policy for photos table
-CREATE POLICY photos_policy ON user_photos
+CREATE POLICY photos_select_policy ON user_photos
+  FOR SELECT
   USING (TRUE); -- Allow reading all photos
 
 -- Create policy to allow users to update their own photos
 CREATE POLICY update_own_photos ON user_photos
   FOR UPDATE
-  USING (user_id IN (SELECT id FROM users WHERE auth_id = current_user));
+  USING (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
 
 -- Create policy to allow users to insert their own photos
 CREATE POLICY insert_own_photos ON user_photos
   FOR INSERT
-  WITH CHECK (user_id IN (SELECT id FROM users WHERE auth_id = current_user));
+  WITH CHECK (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
 
 -- Create policy to allow users to delete their own photos
 CREATE POLICY delete_own_photos ON user_photos
   FOR DELETE
-  USING (user_id IN (SELECT id FROM users WHERE auth_id = current_user));
+  USING (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
 
 -- Policy for swipes table
 CREATE POLICY swipes_insert_policy ON swipes
   FOR INSERT
-  WITH CHECK (swiper_id IN (SELECT id FROM users WHERE auth_id = current_user));
+  WITH CHECK (swiper_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
+
+-- Policy for viewing swipes 
+CREATE POLICY swipes_select_policy ON swipes
+  FOR SELECT
+  USING (swiper_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
 
 -- Policy for matches table
 CREATE POLICY matches_policy ON matches
   USING (
-    user_id_1 IN (SELECT id FROM users WHERE auth_id = current_user) OR
-    user_id_2 IN (SELECT id FROM users WHERE auth_id = current_user)
+    user_id_1 IN (SELECT id FROM users WHERE auth_id = auth.uid()) OR
+    user_id_2 IN (SELECT id FROM users WHERE auth_id = auth.uid())
   );
 
 -- Policy for messages table
@@ -207,8 +262,8 @@ CREATE POLICY messages_policy ON messages
   USING (
     match_id IN (
       SELECT id FROM matches WHERE 
-      user_id_1 IN (SELECT id FROM users WHERE auth_id = current_user) OR
-      user_id_2 IN (SELECT id FROM users WHERE auth_id = current_user)
+      user_id_1 IN (SELECT id FROM users WHERE auth_id = auth.uid()) OR
+      user_id_2 IN (SELECT id FROM users WHERE auth_id = auth.uid())
     )
   );
 
@@ -216,48 +271,72 @@ CREATE POLICY messages_policy ON messages
 CREATE POLICY messages_insert_policy ON messages
   FOR INSERT
   WITH CHECK (
-    sender_id IN (SELECT id FROM users WHERE auth_id = current_user) AND
+    sender_id IN (SELECT id FROM users WHERE auth_id = auth.uid()) AND
     match_id IN (
       SELECT id FROM matches WHERE 
-      user_id_1 IN (SELECT id FROM users WHERE auth_id = current_user) OR
-      user_id_2 IN (SELECT id FROM users WHERE auth_id = current_user)
+      user_id_1 IN (SELECT id FROM users WHERE auth_id = auth.uid()) OR
+      user_id_2 IN (SELECT id FROM users WHERE auth_id = auth.uid())
     )
   );
 
--- Insert some sample data for testing
-INSERT INTO interests (name) VALUES 
-  ('Journalism'), ('Art'), ('Film'), ('Dancing'),
-  ('Finance'), ('Running'), ('Beer Pong'), ('Travel'),
-  ('Coding'), ('Music'), ('Coffee'), ('Hiking'),
-  ('Reading'), ('Photography'), ('Gaming'), ('Cooking'),
-  ('Sports'), ('Politics'), ('Science'), ('Math'),
-  ('Theater');
+-- STORAGE POLICIES
 
-INSERT INTO clubs (name) VALUES
-  ('Terrace'), ('Daily Princetonian'), ('Tower'), ('Investment Club'),
-  ('Quadrangle'), ('CS Club'), ('Tiger Inn'), ('Cannon Club'),
-  ('Debate Club'), ('Drama Club'), ('Singing Club'), ('Robotics Team'),
-  ('Chess Club'), ('Orchestra'), ('Choir'), ('Dance Company'),
-  ('Princeton Review');
+-- Enable RLS on storage.buckets
+ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
 
--- Princeton campus buildings for location selection
-CREATE TABLE campus_buildings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT UNIQUE NOT NULL,
-  latitude FLOAT NOT NULL,
-  longitude FLOAT NOT NULL
+-- Storage bucket creation policy (allows authenticated users to create buckets)
+CREATE POLICY "Allow authenticated users to create buckets" 
+ON storage.buckets 
+FOR INSERT 
+TO authenticated 
+WITH CHECK (true);
+
+-- Storage bucket view policy (allows anyone to view bucket metadata)
+CREATE POLICY "Allow public to view buckets" 
+ON storage.buckets 
+FOR SELECT 
+TO public 
+USING (true);
+
+-- Enable RLS on storage.objects
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+-- User photos bucket policies
+-- INSERT: Allow users to upload only to their own folder
+CREATE POLICY "Allow insert into own folder"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'user-photos'
+  AND auth.uid()::text = storage.foldername(name)::text
 );
 
--- Add some Princeton buildings with their coordinates
-INSERT INTO campus_buildings (name, latitude, longitude) VALUES
-  ('1901 Hall', 40.3461, -74.6551),
-  ('Brown Hall', 40.3458, -74.6545),
-  ('Frist Campus Center', 40.3470, -74.6548),
-  ('Princeton Stadium', 40.3479, -74.6507),
-  ('Lewis Library', 40.3458, -74.6529),
-  ('Nassau Hall', 40.3489, -74.6579),
-  ('Firestone Library', 40.3496, -74.6576),
-  ('Whitman College', 40.3432, -74.6565),
-  ('Forbes College', 40.3421, -74.6603),
-  ('Princeton University Chapel', 40.3483, -74.6551),
-  ('Friend Center', 40.3505, -74.6521);
+-- SELECT: Allow public read access to all photos
+CREATE POLICY "Allow public read access"
+ON storage.objects
+FOR SELECT
+TO public
+USING (
+  bucket_id = 'user-photos'
+);
+
+-- UPDATE: Allow users to update only their own photos
+CREATE POLICY "Allow update of own files"
+ON storage.objects
+FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'user-photos'
+  AND auth.uid()::text = storage.foldername(name)::text
+);
+
+-- DELETE: Allow users to delete only their own photos
+CREATE POLICY "Allow delete of own files"
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'user-photos'
+  AND auth.uid()::text = storage.foldername(name)::text
+);

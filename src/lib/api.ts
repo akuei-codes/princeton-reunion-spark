@@ -1,25 +1,57 @@
 import { supabase } from './supabase';
-import { uploadToCloudinary } from './cloudinary';
 import { UserGender, GenderPreference } from '@/types/database';
 
 export const getCurrentUser = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
+  try {
+    const { data: userData } = await supabase.auth.getSession();
+    if (!userData.session) {
+      throw new Error('No session found');
+    }
 
-  if (!session) {
+    const { data, error } = await supabase
+      .from('users')
+      .select(`
+        *,
+        interests:user_interests(name:interests(*)),
+        clubs:user_clubs(name:clubs(*))
+      `)
+      .eq('auth_id', userData.session.user.id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching user:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getCurrentUser:', error);
     return null;
   }
+};
 
-  const { data: user } = await supabase
-    .from('users')
-    .select(`
-      *,
-      interests:user_interests(name:interests(*)),
-      clubs:user_clubs(name:clubs(*))
-    `)
-    .eq('auth_id', session.user.id)
-    .single();
-
-  return user;
+export const getUserById = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select(`
+        id, name, class_year, bio, major, gender, gender_preference, building, vibe, photo_urls,
+        interests:user_interests(name:interests(*)),
+        clubs:user_clubs(name:clubs(*))
+      `)
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching user:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getUserById:', error);
+    return null;
+  }
 };
 
 export const updateUserProfile = async ({
@@ -33,633 +65,365 @@ export const updateUserProfile = async ({
   gender: UserGender;
   gender_preference: GenderPreference;
 }) => {
-  const { data: { session } } = await supabase.auth.getSession();
+  try {
+    const { data: userData } = await supabase.auth.getSession();
+    if (!userData.session) {
+      throw new Error('No session found');
+    }
 
-  if (!session) {
-    throw new Error('No active session');
-  }
+    const { data, error } = await supabase
+      .from('users')
+      .update({
+        bio,
+        major,
+        gender,
+        gender_preference
+      })
+      .eq('auth_id', userData.session.user.id);
 
-  const { data, error } = await supabase
-    .from('users')
-    .update({
-      bio,
-      major,
-      gender,
-      gender_preference
-    })
-    .eq('auth_id', session.user.id);
+    if (error) {
+      console.error('Error updating user profile:', error);
+      throw error;
+    }
 
-  if (error) {
+    return data;
+  } catch (error) {
+    console.error('Error in updateUserProfile:', error);
     throw error;
   }
-
-  return data;
 };
 
 export const uploadUserPhoto = async (file: File, position: number) => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error('No active session');
+    const { data: userData } = await supabase.auth.getSession();
+    if (!userData.session) {
+      throw new Error('No session found');
+    }
     
-    // Get the current user ID
-    const { data: userData, error: userError } = await supabase
+    // Get current user data
+    const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, photo_urls')
-      .eq('auth_id', session.user.id)
+      .select('photo_urls')
+      .eq('auth_id', userData.session.user.id)
       .single();
-        
-    if (userError || !userData) {
-      throw new Error('Could not validate user');
+    
+    if (userError) {
+      console.error('Error fetching user:', userError);
+      throw userError;
     }
     
-    // Upload to Cloudinary
-    const publicUrl = await uploadToCloudinary(file);
+    let currentPhotos = user?.photo_urls || [];
     
-    // Update the photo_urls array in the users table
-    const updatedPhotoUrls = [...(userData.photo_urls || [])];
+    // Upload file to Supabase storage
+    const timestamp = Date.now();
+    const filePath = `avatars/${userData.session.user.id}/${timestamp}-${file.name}`;
     
-    // Ensure the position exists in the array
-    while (updatedPhotoUrls.length <= position) {
-      updatedPhotoUrls.push('');
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+    
+    if (uploadError) {
+      console.error('Error uploading file:', uploadError);
+      throw uploadError;
     }
     
-    // Update the URL at the specified position
-    updatedPhotoUrls[position] = publicUrl;
+    const newPhotoUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${uploadData.Key}`;
     
-    // Filter out any empty strings
-    const filteredUrls = updatedPhotoUrls.filter(url => url);
+    // Insert the new photo URL at the specified position
+    currentPhotos[position] = newPhotoUrl;
     
-    // Update the user record
-    const { error: updateError } = await supabase
+    // Update user profile with new photo URLs
+    const { data: updateData, error: updateError } = await supabase
       .from('users')
       .update({
-        photo_urls: filteredUrls
+        photo_urls: currentPhotos
       })
-      .eq('id', userData.id);
-      
-    if (updateError) throw updateError;
+      .eq('auth_id', userData.session.user.id);
     
-    return publicUrl;
+    if (updateError) {
+      console.error('Error updating user profile:', updateError);
+      throw updateError;
+    }
+    
+    return updateData;
   } catch (error) {
-    console.error('Error uploading photo:', error);
+    console.error('Error in uploadUserPhoto:', error);
     throw error;
   }
 };
 
 export const deleteUserPhoto = async (photoUrl: string) => {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw new Error('No active session');
+  try {
+    const { data: userData } = await supabase.auth.getSession();
+    if (!userData.session) {
+      throw new Error('No session found');
+    }
+    
+    // Get current user data
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('photo_urls')
+      .eq('auth_id', userData.session.user.id)
+      .single();
+    
+    if (userError) {
+      console.error('Error fetching user:', userError);
+      throw userError;
+    }
+    
+    let currentPhotos = user?.photo_urls || [];
+    
+    // Remove the photo URL from the array
+    currentPhotos = currentPhotos.filter(url => url !== photoUrl);
+    
+    // Update user profile with updated photo URLs
+    const { data: updateData, error: updateError } = await supabase
+      .from('users')
+      .update({
+        photo_urls: currentPhotos
+      })
+      .eq('auth_id', userData.session.user.id);
+    
+    if (updateError) {
+      console.error('Error updating user profile:', updateError);
+      throw updateError;
+    }
+    
+    // Extract the path from the URL
+    const urlParts = photoUrl.split('/avatars/');
+    if (urlParts.length < 2) {
+      console.error('Invalid photo URL:', photoUrl);
+      throw new Error('Invalid photo URL');
+    }
+    
+    const filePath = `avatars/${urlParts[1]}`;
+    
+    // Delete file from Supabase storage
+    const { error: deleteError } = await supabase.storage
+      .from('avatars')
+      .remove([filePath]);
+    
+    if (deleteError) {
+      console.error('Error deleting file:', deleteError);
+      throw deleteError;
+    }
+    
+    return updateData;
+  } catch (error) {
+    console.error('Error in deleteUserPhoto:', error);
+    throw error;
   }
-
-  // Get current photo URLs
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('id, photo_urls')
-    .eq('auth_id', session.user.id)
-    .single();
-
-  if (userError || !userData) {
-    throw new Error('Could not validate user');
-  }
-
-  // Filter out the URL to delete
-  const updatedPhotoUrls = (userData.photo_urls || []).filter(url => url !== photoUrl);
-
-  // Update the user record
-  const { error: updateError } = await supabase
-    .from('users')
-    .update({
-      photo_urls: updatedPhotoUrls
-    })
-    .eq('id', userData.id);
-
-  if (updateError) {
-    throw updateError;
-  }
-
-  return true;
 };
 
 export const updateUserInterests = async (interests: string[]) => {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw new Error('No active session');
-  }
-
-  // Get the user id
-  const { data: user, error: userError } = await supabase
-    .from('users')
-    .select('id')
-    .eq('auth_id', session.user.id)
-    .single();
-
-  if (userError) {
-    throw userError;
-  }
-
-  // Get the existing interests
-  const { data: existingInterests, error: existingInterestsError } = await supabase
-    .from('user_interests')
-    .select('interest_id')
-    .eq('user_id', user.id);
-
-  if (existingInterestsError) {
-    throw existingInterestsError;
-  }
-
-  // Get the interests to remove
-  const interestsToRemove = existingInterests.filter(existingInterest => {
-    return !interests.includes(existingInterest.interest_id);
-  });
-
-  // Remove the interests
-  if (interestsToRemove.length > 0) {
-    const { error: removeError } = await supabase
+  try {
+    const { data: userData } = await supabase.auth.getSession();
+    if (!userData.session) {
+      throw new Error('No session found');
+    }
+    
+    // Get user ID
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', userData.session.user.id)
+      .single();
+    
+    if (userError) {
+      console.error('Error fetching user:', userError);
+      throw userError;
+    }
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+    
+    // Delete existing interests
+    const { error: deleteError } = await supabase
       .from('user_interests')
       .delete()
-      .eq('user_id', user.id)
-      .in('interest_id', interestsToRemove.map(interest => interest.interest_id));
-
-    if (removeError) {
-      throw removeError;
+      .eq('user_id', user.id);
+    
+    if (deleteError) {
+      console.error('Error deleting user interests:', deleteError);
+      throw deleteError;
     }
+    
+    // Insert new interests
+    for (const interest of interests) {
+      // Check if interest exists
+      let interestId = null;
+      const { data: existingInterest } = await supabase
+        .from('interests')
+        .select('id')
+        .eq('name', interest)
+        .maybeSingle();
+      
+      if (existingInterest) {
+        interestId = existingInterest.id;
+      } else {
+        // Create new interest
+        const { data: newInterest, error: newInterestError } = await supabase
+          .from('interests')
+          .insert({ name: interest })
+          .select()
+          .single();
+        
+        if (newInterestError) {
+          console.error('Error creating interest:', newInterestError);
+          throw newInterestError;
+        }
+        interestId = newInterest.id;
+      }
+      
+      // Link interest to user
+      const { error: linkError } = await supabase
+        .from('user_interests')
+        .insert({
+          user_id: user.id,
+          interest_id: interestId
+        });
+      
+      if (linkError) {
+        console.error('Error linking interest to user:', linkError);
+        throw linkError;
+      }
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error in updateUserInterests:', error);
+    throw error;
   }
-
-  // Get the interests to add
-  const interestsToAdd = interests.filter(interest => {
-    return !existingInterests.find(existingInterest => existingInterest.interest_id === interest);
-  });
-
-  // Add the interests
-  if (interestsToAdd.length > 0) {
-    // Get the interest ids
-    const { data: interestIds, error: interestIdsError } = await supabase
-      .from('interests')
-      .select('id')
-      .in('name', interestsToAdd);
-
-    if (interestIdsError) {
-      throw interestIdsError;
-    }
-
-    // Add the interests
-    const { error: addError } = await supabase
-      .from('user_interests')
-      .insert(interestIds.map(interestId => ({
-        user_id: user.id,
-        interest_id: interestId.id
-      })));
-
-    if (addError) {
-      throw addError;
-    }
-  }
-
-  return true;
 };
 
 export const updateUserClubs = async (clubs: string[]) => {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw new Error('No active session');
-  }
-
-  // Get the user id
-  const { data: user, error: userError } = await supabase
-    .from('users')
-    .select('id')
-    .eq('auth_id', session.user.id)
-    .single();
-
-  if (userError) {
-    throw userError;
-  }
-
-  // Get the existing clubs
-  const { data: existingClubs, error: existingClubsError } = await supabase
-    .from('user_clubs')
-    .select('club_id')
-    .eq('user_id', user.id);
-
-  if (existingClubsError) {
-    throw existingClubsError;
-  }
-
-  // Get the clubs to remove
-  const clubsToRemove = existingClubs.filter(existingClub => {
-    return !clubs.includes(existingClub.club_id);
-  });
-
-  // Remove the clubs
-  if (clubsToRemove.length > 0) {
-    const { error: removeError } = await supabase
+  try {
+    const { data: userData } = await supabase.auth.getSession();
+    if (!userData.session) {
+      throw new Error('No session found');
+    }
+    
+    // Get user ID
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', userData.session.user.id)
+      .single();
+    
+    if (userError) {
+      console.error('Error fetching user:', userError);
+      throw userError;
+    }
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+    
+    // Delete existing clubs
+    const { error: deleteError } = await supabase
       .from('user_clubs')
       .delete()
-      .eq('user_id', user.id)
-      .in('club_id', clubsToRemove.map(club => club.club_id));
-
-    if (removeError) {
-      throw removeError;
+      .eq('user_id', user.id);
+    
+    if (deleteError) {
+      console.error('Error deleting user clubs:', deleteError);
+      throw deleteError;
     }
-  }
-
-  // Get the clubs to add
-  const clubsToAdd = clubs.filter(club => {
-    return !existingClubs.find(existingClub => existingClub.club_id === club);
-  });
-
-  // Add the clubs
-  if (clubsToAdd.length > 0) {
-    // Get the club ids
-    const { data: clubIds, error: clubIdsError } = await supabase
-      .from('clubs')
-      .select('id')
-      .in('name', clubsToAdd);
-
-    if (clubIdsError) {
-      throw clubIdsError;
-    }
-
-    // Add the clubs
-    const { error: addError } = await supabase
-      .from('user_clubs')
-      .insert(clubIds.map(clubId => ({
-        user_id: user.id,
-        club_id: clubId.id
-      })));
-
-    if (addError) {
-      throw addError;
-    }
-  }
-
-  return true;
-};
-
-export const getUserById = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('users')
-    .select(`
-      *,
-      interests:user_interests(name:interests(*)),
-      clubs:user_clubs(name:clubs(*))
-    `)
-    .eq('id', userId)
-    .single();
-
-  if (error) {
-    console.error('Error fetching user by ID:', error);
-    return null;
-  }
-
-  return data;
-};
-
-// New functions for swipe functionality
-export const getPotentialMatches = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw new Error('No active session');
-  }
-
-  // Get current user's ID and preferences
-  const { data: currentUser } = await supabase
-    .from('users')
-    .select('id, gender, gender_preference')
-    .eq('auth_id', session.user.id)
-    .single();
-
-  if (!currentUser) {
-    throw new Error('User profile not found');
-  }
-
-  // Get list of users we've already swiped on
-  const { data: swipedUsers } = await supabase
-    .from('swipes')
-    .select('swiped_id')
-    .eq('swiper_id', currentUser.id);
-  
-  const swipedUserIds = swipedUsers?.map(swipe => swipe.swiped_id) || [];
-
-  // Add current user ID to the excluded list
-  const excludedUserIds = [...swipedUserIds, currentUser.id];
-
-  // Build gender filter based on user preference
-  let genderFilter = {};
-  
-  if (currentUser.gender_preference !== 'everyone') {
-    genderFilter = { gender: currentUser.gender_preference };
-  }
-
-  // Get potential matches excluding already swiped users
-  const { data: potentialMatches, error } = await supabase
-    .from('users')
-    .select(`
-      *,
-      interests:user_interests(interests(*)),
-      clubs:user_clubs(clubs(*))
-    `)
-    .not('id', 'in', `(${excludedUserIds.join(',')})`)
-    .match(genderFilter)
-    .order('created_at', { ascending: false })
-    .limit(20);
-
-  if (error) {
-    console.error('Error fetching potential matches:', error);
-    throw error;
-  }
-
-  // Format the response for the frontend
-  const formattedMatches = potentialMatches.map(user => ({
-    ...user,
-    interests: user.interests.map((item: any) => item.interests),
-    clubs: user.clubs.map((item: any) => item.clubs)
-  }));
-
-  return formattedMatches;
-};
-
-export const recordSwipe = async (userId: string, direction: 'left' | 'right') => {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw new Error('No active session');
-  }
-
-  // Get current user ID
-  const { data: currentUser } = await supabase
-    .from('users')
-    .select('id')
-    .eq('auth_id', session.user.id)
-    .single();
-
-  if (!currentUser) {
-    throw new Error('User not found');
-  }
-
-  // Record the swipe
-  const { error } = await supabase
-    .from('swipes')
-    .insert({
-      swiper_id: currentUser.id,
-      swiped_id: userId,
-      direction
-    });
-
-  if (error && error.code !== '23505') { // Ignore unique violation errors
-    console.error('Error recording swipe:', error);
-    throw error;
-  }
-
-  // If it was a right swipe, check if there's a match
-  if (direction === 'right') {
-    const { data: mutualSwipe } = await supabase
-      .from('swipes')
-      .select('*')
-      .eq('swiper_id', userId)
-      .eq('swiped_id', currentUser.id)
-      .eq('direction', 'right')
-      .maybeSingle();
-
-    // If mutual right swipe, create a match
-    if (mutualSwipe) {
-      // Match is created by the trigger in the database
-      return true; // Return true to indicate it's a match
-    }
-  }
-
-  return false; // Not a match
-};
-
-// New functions for matches functionality
-export const getUserMatches = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw new Error('No active session');
-  }
-
-  // Get current user ID
-  const { data: currentUser } = await supabase
-    .from('users')
-    .select('id')
-    .eq('auth_id', session.user.id)
-    .single();
-
-  if (!currentUser) {
-    throw new Error('User not found');
-  }
-
-  // Get all matches for the current user
-  const { data: matches, error } = await supabase
-    .from('matches')
-    .select(`
-      id,
-      created_at,
-      user_id_1,
-      user_id_2,
-      users1:user_id_1(id, name, class_year, photo_urls),
-      users2:user_id_2(id, name, class_year, photo_urls)
-    `)
-    .or(`user_id_1.eq.${currentUser.id},user_id_2.eq.${currentUser.id}`)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching matches:', error);
-    throw error;
-  }
-
-  // Get the last message for each match
-  const formattedMatches = await Promise.all(
-    matches.map(async match => {
-      // Determine which user is the other person in the match
-      const otherUserData = match.user_id_1 === currentUser.id ? match.users2 : match.users1;
-      
-      // Make sure otherUserData is treated as a single object, not an array
-      const otherUser = {
-        id: otherUserData.id,
-        name: otherUserData.name,
-        class_year: otherUserData.class_year,
-        photo_urls: otherUserData.photo_urls
-      };
-      
-      // Get the last message
-      const { data: lastMessage } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('match_id', match.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
+    
+    // Insert new clubs
+    for (const club of clubs) {
+      // Check if club exists
+      let clubId = null;
+      const { data: existingClub } = await supabase
+        .from('clubs')
+        .select('id')
+        .eq('name', club)
         .maybeSingle();
       
-      // Check for unread messages
-      const { count: unreadCount } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('match_id', match.id)
-        .eq('sender_id', otherUser.id)
-        .eq('read', false);
-
-      // Format the last message time
-      const lastMessageTime = lastMessage ? 
-        new Date(lastMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
-        null;
-
-      return {
-        id: match.id,
-        created_at: match.created_at,
-        other_user: {
-          id: otherUser.id,
-          name: otherUser.name,
-          class_year: otherUser.class_year,
-          photos: otherUser.photo_urls?.map((url: string) => ({ photo_url: url })) || [],
-          unread: unreadCount ? unreadCount > 0 : false
-        },
-        last_message: lastMessage ? {
-          message: lastMessage.message,
-          time: lastMessageTime
-        } : null
-      };
-    })
-  );
-
-  return formattedMatches;
-};
-
-// New functions for chat functionality
-export const getMessages = async (matchId: string) => {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw new Error('No active session');
-  }
-
-  // Get messages for the match
-  const { data: messages, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('match_id', matchId)
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching messages:', error);
+      if (existingClub) {
+        clubId = existingClub.id;
+      } else {
+        // Create new club
+        const { data: newClub, error: newClubError } = await supabase
+          .from('clubs')
+          .insert({ name: club })
+          .select()
+          .single();
+        
+        if (newClubError) {
+          console.error('Error creating club:', newClubError);
+          throw newClubError;
+        }
+        clubId = newClub.id;
+      }
+      
+      // Link club to user
+      const { error: linkError } = await supabase
+        .from('user_clubs')
+        .insert({
+          user_id: user.id,
+          club_id: clubId
+        });
+      
+      if (linkError) {
+        console.error('Error linking club to user:', linkError);
+        throw linkError;
+      }
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error in updateUserClubs:', error);
     throw error;
   }
-
-  return messages;
 };
 
-export const sendMessage = async (matchId: string, message: string) => {
-  const { data: { session } } = await supabase.auth.getSession();
+// Fix the getUserMatches function to properly handle array elements
+export const getUserMatches = async (): Promise<any[]> => {
+  try {
+    const { data: userData } = await supabase.auth.getSession();
+    if (!userData.session) {
+      throw new Error('No session found');
+    }
+    
+    const { data: userMatches, error } = await supabase
+      .from('matches')
+      .select(`
+        matched_user_id
+      `)
+      .eq('user_id', userData.session.user.id)
+      .eq('status', 'matched');
+    
+    if (error) {
+      console.error('Error fetching matches:', error);
+      return [];
+    }
 
-  if (!session) {
-    throw new Error('No active session');
+    if (!userMatches || userMatches.length === 0) {
+      return [];
+    }
+
+    const matchedUserIds = userMatches.map(match => match.matched_user_id);
+    
+    const { data: matchedUsers, error: matchedUsersError } = await supabase
+      .from('users')
+      .select(`
+        id, name, class_year, photo_urls
+      `)
+      .in('id', matchedUserIds);
+    
+    if (matchedUsersError) {
+      console.error('Error fetching matched users:', matchedUsersError);
+      return [];
+    }
+    
+    return matchedUsers || [];
+  } catch (error) {
+    console.error('Error in getUserMatches:', error);
+    return [];
   }
-
-  // Get current user ID
-  const { data: currentUser } = await supabase
-    .from('users')
-    .select('id')
-    .eq('auth_id', session.user.id)
-    .single();
-
-  if (!currentUser) {
-    throw new Error('User not found');
-  }
-
-  // Insert the message
-  const { data, error } = await supabase
-    .from('messages')
-    .insert({
-      match_id: matchId,
-      sender_id: currentUser.id,
-      message,
-      read: false
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error sending message:', error);
-    throw error;
-  }
-
-  return data;
-};
-
-export const markMessagesAsRead = async (matchId: string) => {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw new Error('No active session');
-  }
-
-  // Get current user ID
-  const { data: currentUser } = await supabase
-    .from('users')
-    .select('id')
-    .eq('auth_id', session.user.id)
-    .single();
-
-  if (!currentUser) {
-    throw new Error('User not found');
-  }
-
-  // Get the other user in this match
-  const { data: match } = await supabase
-    .from('matches')
-    .select('user_id_1, user_id_2')
-    .eq('id', matchId)
-    .single();
-
-  if (!match) {
-    throw new Error('Match not found');
-  }
-
-  // Determine the other user's ID
-  const otherUserId = match.user_id_1 === currentUser.id ? match.user_id_2 : match.user_id_1;
-
-  // Mark all messages from the other user as read
-  const { error } = await supabase
-    .from('messages')
-    .update({ read: true })
-    .eq('match_id', matchId)
-    .eq('sender_id', otherUserId)
-    .eq('read', false);
-
-  if (error) {
-    console.error('Error marking messages as read:', error);
-    throw error;
-  }
-
-  return true;
-};
-
-// New function for hot zones
-export const getHotZones = async () => {
-  const { data: hotZones, error } = await supabase
-    .from('hot_zones')
-    .select(`
-      *,
-      events:hot_zone_events(*)
-    `)
-    .order('active_users', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching hot zones:', error);
-    throw error;
-  }
-
-  // Add a calculated field for matches nearby (this would be more complex in a real app)
-  const enhancedHotZones = hotZones.map(zone => ({
-    ...zone,
-    matches_nearby: Math.floor(Math.random() * 5) // Just for demo purposes
-  }));
-
-  return enhancedHotZones;
 };

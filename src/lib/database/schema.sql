@@ -213,12 +213,12 @@ CREATE POLICY users_select_policy ON users
 -- Policy for users table - update own record
 CREATE POLICY users_update_policy ON users
   FOR UPDATE
-  USING (auth_id = auth.uid()); -- Only update own record
+  USING (auth_id = auth.uid()::text); -- Cast uuid to text for comparison
 
 -- Policy for users table - insert own record
 CREATE POLICY users_insert_policy ON users
   FOR INSERT
-  WITH CHECK (auth_id = auth.uid()); -- Only insert own record
+  WITH CHECK (auth_id = auth.uid()::text); -- Cast uuid to text for comparison
 
 -- Policy for photos table
 CREATE POLICY photos_select_policy ON user_photos

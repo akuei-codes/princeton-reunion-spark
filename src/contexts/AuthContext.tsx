@@ -56,6 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch (error) {
             console.error("Error during initial profile load:", error);
             setError(error instanceof Error ? error : new Error("Failed to load profile"));
+          } finally {
             setLoading(false);
           }
         } else {
@@ -88,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } catch (error) {
               console.error("Error during auth state change:", error);
               setError(error instanceof Error ? error : new Error("Authentication error"));
+            } finally {
               setLoading(false);
             }
           } else {
@@ -96,6 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } catch (error) {
               console.error("Error loading profile on auth state change:", error);
               setError(error instanceof Error ? error : new Error("Failed to load profile"));
+            } finally {
               setLoading(false);
             }
           }
@@ -152,6 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         while (retries < 3 && !success) {
           try {
+            // Make sure we're using exactly the column names from the schema
             const { error: createError } = await supabase
               .from('users')
               .insert({
@@ -163,7 +167,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 major: '',
                 gender: 'other' as UserGender,
                 gender_preference: 'everyone' as GenderPreference,
-                profile_complete: false
+                profile_complete: false,
+                // Intentionally excluding photo_urls, location, building, latitude, longitude
+                // as they are optional and will be set to their default values
               });
             
             if (createError) {

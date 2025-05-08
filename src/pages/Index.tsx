@@ -58,7 +58,7 @@ const Index = () => {
           <span className="text-xl">Authentication Error</span>
         </div>
         <p className="text-white/80 text-center max-w-md mb-4">
-          There was an error with your authentication session. Please try signing in again.
+          There was an error with your authentication session: {error.message}
         </p>
         <Button 
           onClick={() => window.location.reload()}

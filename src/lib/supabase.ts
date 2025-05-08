@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://cxopipsilxpcoyhkpfbr.supabase.co';
@@ -89,6 +90,7 @@ export const ensureBucketExists = async (bucketName: string): Promise<boolean> =
 // Function to check if user has access to the users table
 export const checkUserTableAccess = async (): Promise<boolean> => {
   try {
+    console.log('Checking user table access...');
     // Try to query the users table with a 5 second timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -106,6 +108,7 @@ export const checkUserTableAccess = async (): Promise<boolean> => {
       return false;
     }
     
+    console.log('User table access confirmed.');
     return true;
   } catch (error) {
     console.error('Error checking users table access:', error);

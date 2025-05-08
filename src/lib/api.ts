@@ -24,7 +24,7 @@ export const getCurrentUser = async (): Promise<UserWithRelations | null> => {
         clubs:user_clubs(name:clubs(*))
       `)
       .eq('auth_id', userId)
-      .single();
+      .maybeSingle();
     
     if (error) {
       console.error('Error getting current user:', error);

@@ -639,7 +639,7 @@ export const getHotZones = async (): Promise<any[]> => {
     const { data, error } = await supabase
       .from('hot_zones')
       .select('*')
-      .order('user_count', { ascending: false });
+      .order('active_users', { ascending: false });
     
     if (error) throw error;
     

@@ -39,7 +39,7 @@ const Dashboard: React.FC = () => {
       title: 'Hot Zones',
       description: 'Discover popular reunion areas and events happening now.',
       icon: <Compass size={40} className="text-princeton-orange" />,
-      action: '/zones',
+      action: '/hot-zones',
       color: 'from-amber-500 to-yellow-500',
     },
   ];

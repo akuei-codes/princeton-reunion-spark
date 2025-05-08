@@ -5,6 +5,7 @@ import Logo from '../components/Logo';
 import { ArrowLeft, MapPin, Users, Clock, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getHotZones } from '../lib/api';
+import { toast } from 'sonner';
 
 const HotZones: React.FC = () => {
   const navigate = useNavigate();
@@ -12,14 +13,20 @@ const HotZones: React.FC = () => {
   // Fetch hot zones data
   const { data: hotZones = [], isLoading, error } = useQuery({
     queryKey: ['hot-zones'],
-    queryFn: getHotZones
+    queryFn: getHotZones,
+    meta: {
+      onError: (error: Error) => {
+        console.error("Error fetching hot zones:", error);
+        toast.error("Failed to load hot zones");
+      }
+    }
   });
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-black to-[#121212]">
       <header className="container mx-auto px-4 py-4 flex items-center">
         <button 
-          onClick={() => navigate('/swipe')}
+          onClick={() => navigate('/dashboard')}
           className="text-princeton-white hover:text-princeton-orange transition-colors mr-4"
         >
           <ArrowLeft size={24} />
@@ -82,7 +89,7 @@ const HotZones: React.FC = () => {
                       </div>
                       
                       <div className="bg-princeton-orange text-princeton-black px-3 py-1 rounded-lg font-medium text-sm">
-                        {zone.matches_nearby} {zone.matches_nearby === 1 ? 'match' : 'matches'}
+                        {zone.matches_nearby || zone.active_users} {zone.matches_nearby === 1 ? 'match' : 'matches'}
                       </div>
                     </div>
                   </div>
@@ -104,14 +111,18 @@ const HotZones: React.FC = () => {
                   </div>
                   
                   <div className="flex flex-wrap gap-2">
-                    {zone.events.map((event, index) => (
+                    {zone.events && Array.isArray(zone.events) ? zone.events.map((event, index) => (
                       <div 
                         key={index}
                         className="px-3 py-1 bg-black/30 text-princeton-white/80 rounded-full text-sm"
                       >
                         {event.name}
                       </div>
-                    ))}
+                    )) : (
+                      <div className="px-3 py-1 bg-black/30 text-princeton-white/80 rounded-full text-sm">
+                        No scheduled events
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

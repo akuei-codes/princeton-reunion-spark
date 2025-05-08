@@ -357,28 +357,34 @@ const ProfileSetupPage: React.FC = () => {
       // Show upload progress toast
       toast.loading("Uploading photos...");
       
-      // Upload photos to Cloudinary with better error handling
+      // Try to upload photos to Cloudinary, but proceed even if some fail
+      let successCount = 0;
+      let failCount = 0;
+      
       for (const photo of photos) {
         try {
           console.log("Uploading photo:", photo.file.name);
           const cloudinaryUrl = await uploadToCloudinary(photo.file);
           if (cloudinaryUrl) {
             photoUrls.push(cloudinaryUrl);
+            successCount++;
             console.log("Photo uploaded successfully");
           }
         } catch (err) {
           console.error('Error uploading to Cloudinary:', err);
+          failCount++;
           // Continue with other photos on failure
         }
       }
       
-      if (photoUrls.length === 0) {
-        toast.error('Failed to upload any photos. Please try again.');
-        return;
-      } else if (photoUrls.length < photos.length) {
-        toast.warning(`Only ${photoUrls.length} of ${photos.length} photos were uploaded successfully.`);
-      } else {
-        toast.success(`All ${photoUrls.length} photos uploaded successfully.`);
+      // Provide feedback about uploads
+      if (successCount === 0 && photos.length > 0) {
+        // All uploads failed but we'll continue with profile creation
+        toast.error('Failed to upload photos but will continue with profile creation');
+      } else if (failCount > 0) {
+        toast.warning(`Only ${successCount} of ${photos.length} photos were uploaded successfully, but we'll continue.`);
+      } else if (successCount > 0) {
+        toast.success(`All ${successCount} photos uploaded successfully.`);
       }
       
       console.log("Creating/updating user profile with photo URLs:", photoUrls);
@@ -400,7 +406,7 @@ const ProfileSetupPage: React.FC = () => {
           location: selectedBuilding?.name,
           latitude: selectedBuilding?.latitude,
           longitude: selectedBuilding?.longitude,
-          photo_urls: photoUrls,
+          photo_urls: photoUrls.length > 0 ? photoUrls : null,
           profile_complete: true
         })
         .select()

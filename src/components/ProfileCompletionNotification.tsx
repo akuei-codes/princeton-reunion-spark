@@ -18,21 +18,29 @@ const ProfileCompletionNotification: React.FC<ProfileCompletionNotificationProps
 }) => {
   const [dismissed, setDismissed] = useState(false);
   const navigate = useNavigate();
-  const { isProfileComplete } = useAuth(); // Changed from profileComplete to isProfileComplete
+  const { isProfileComplete, user } = useAuth();
 
   // Get current user to check if profile is complete
-  const { data: currentUser, isError } = useQuery({
+  // Added error handling for 406 errors (no rows found)
+  const { data: currentUser } = useQuery({
     queryKey: ['current-user'],
     queryFn: getCurrentUser,
     // Don't show an error if this fails - we'll fall back to the context value
     meta: {
       errorMessage: false
-    }
+    },
+    // Don't retry on errors since we expect 406 errors for new users
+    retry: false
   });
 
   // Use either the API response or the context value
   const profileComplete = isProfileComplete || (currentUser && currentUser.profile_complete);
 
+  // Don't show if not logged in
+  if (!user) {
+    return null;
+  }
+  
   const handleDismiss = () => {
     setDismissed(true);
     toast.success("You can complete your profile later from your settings", {

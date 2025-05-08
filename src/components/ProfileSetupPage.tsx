@@ -378,75 +378,62 @@ const ProfileSetupPage: React.FC = () => {
         throw new Error('Failed to create user profile');
       }
       
-      // Check if storage bucket exists and create it if needed
-      const { data: buckets, error: bucketsError } = await supabase
-        .storage
-        .listBuckets();
-        
-      if (bucketsError) {
-        console.error('Error checking storage buckets:', bucketsError);
-      }
-      
-      const userPhotosBucketExists = buckets?.some(bucket => bucket.name === 'user-photos');
-      
-      if (!userPhotosBucketExists) {
-        // Try to create the bucket
-        const { error: createBucketError } = await supabase
-          .storage
-          .createBucket('user-photos', {
-            public: true,
-            fileSizeLimit: MAX_PHOTO_SIZE_MB * 1024 * 1024
-          });
-          
-        if (createBucketError) {
-          console.error('Error creating storage bucket:', createBucketError);
-          toast.error('Failed to set up photo storage. Please try again later or contact support.');
-          return;
-        }
-      }
-      
-      // Upload photos
+      // Upload photos directly without trying to create/check bucket
+      // (The bucket should already be created in the Supabase dashboard)
       const photoUploadPromises = photos.map(async (photo, i) => {
-        const { file } = photo;
-        const fileExt = file.name.split('.').pop();
-        const filePath = `${userData.id}/${Date.now()}-${i}.${fileExt}`;
-        
-        // Upload to storage
-        const { error: uploadError } = await supabase
-          .storage
-          .from('user-photos')
-          .upload(filePath, file);
+        try {
+          const { file } = photo;
+          const fileExt = file.name.split('.').pop();
+          const filePath = `${userData.id}/${Date.now()}-${i}.${fileExt}`;
           
-        if (uploadError) {
-          console.error('Error uploading photo:', uploadError);
-          throw uploadError;
+          // Upload to storage
+          const { error: uploadError, data: uploadData } = await supabase
+            .storage
+            .from('user-photos')
+            .upload(filePath, file, {
+              upsert: true
+            });
+            
+          if (uploadError) {
+            console.error('Error uploading photo:', uploadError);
+            throw uploadError;
+          }
+          
+          // Get public URL
+          const { data: { publicUrl } } = supabase
+            .storage
+            .from('user-photos')
+            .getPublicUrl(filePath);
+            
+          // Add to photos table
+          const { error: photoError } = await supabase
+            .from('user_photos')
+            .insert({
+              user_id: userData.id,
+              photo_url: publicUrl,
+              position: i
+            });
+            
+          if (photoError) {
+            console.error('Error creating photo record:', photoError);
+            throw photoError;
+          }
+          
+          return { success: true };
+        } catch (err) {
+          console.error('Error in photo upload process:', err);
+          toast.error(`Failed to upload photo ${i+1}`);
+          return { success: false };
         }
-        
-        // Get public URL
-        const { data: { publicUrl } } = supabase
-          .storage
-          .from('user-photos')
-          .getPublicUrl(filePath);
-          
-        // Add to photos table
-        const { error: photoError } = await supabase
-          .from('user_photos')
-          .insert({
-            user_id: userData.id,
-            photo_url: publicUrl,
-            position: i
-          });
-          
-        if (photoError) {
-          console.error('Error creating photo record:', photoError);
-          throw photoError;
-        }
-        
-        return { success: true };
       });
       
       // Wait for all photo uploads to complete
-      await Promise.all(photoUploadPromises);
+      const photoResults = await Promise.all(photoUploadPromises);
+      const successfulUploads = photoResults.filter(result => result.success).length;
+      
+      if (successfulUploads < photos.length) {
+        toast.warning(`Uploaded ${successfulUploads} of ${photos.length} photos. You can add more later.`);
+      }
       
       // Process interests
       for (const interest of selectedInterests) {
@@ -635,7 +622,7 @@ const ProfileSetupPage: React.FC = () => {
                 </div>
               </div>
             )}
-
+            
             {currentStep === 'photos' && (
               <div className="space-y-6">
                 <div className="text-center mb-4">

@@ -73,7 +73,7 @@ export const updateUserProfile = async (profileData: Partial<User>): Promise<Use
   }
 };
 
-// Upload user photo
+// Upload user photo - Updated with better error handling
 export const uploadUserPhoto = async (file: File, position: number): Promise<UserPhoto | null> => {
   try {
     const currentUser = await getCurrentUser();
@@ -83,12 +83,17 @@ export const uploadUserPhoto = async (file: File, position: number): Promise<Use
     const fileExt = file.name.split('.').pop();
     const filePath = `${currentUser.id}/${Date.now()}.${fileExt}`;
 
-    const { error: uploadError } = await supabase
+    const { error: uploadError, data: uploadData } = await supabase
       .storage
       .from('user-photos')
-      .upload(filePath, file);
+      .upload(filePath, file, {
+        upsert: true
+      });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      throw uploadError;
+    }
 
     // Get public URL
     const { data: { publicUrl } } = supabase

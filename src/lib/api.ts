@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { UserGender, GenderPreference } from '@/types/database';
+import { UserGender, GenderPreference, UserWithRelations } from '@/types/database';
 
 // Get the currently logged in user from the database
 export const getCurrentUser = async () => {
@@ -83,7 +83,7 @@ export const updateUserProfile = async (profileData: {
 };
 
 // Get potential matches for the current user
-export const getPotentialMatches = async () => {
+export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
   try {
     console.time('getPotentialMatches'); // Add performance timing
     const { data: { session } } = await supabase.auth.getSession();
@@ -123,7 +123,11 @@ export const getPotentialMatches = async () => {
         gender_preference,
         profile_complete,
         intention,
-        interests:user_interests(name:interests(*))
+        role,
+        created_at,
+        updated_at,
+        interests:user_interests(name:interests(*)),
+        clubs:user_clubs(name:clubs(*))
       `)
       .neq('auth_id', session.user.id)
       .in('gender', [currentUser.gender_preference, 'any'])
@@ -141,7 +145,7 @@ export const getPotentialMatches = async () => {
     const filteredMatches = data?.filter(user => !swipedUserIds.includes(user.id)) || [];
     console.timeEnd('getPotentialMatches'); // Log timing
     
-    return filteredMatches;
+    return filteredMatches as UserWithRelations[];
   } catch (error) {
     console.error('Error getting potential matches:', error);
     throw error;

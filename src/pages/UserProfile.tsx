@@ -1,780 +1,418 @@
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, Camera, LogOut, Settings, Edit, MapPin, 
-  Heart, X, Save, GraduationCap, Calendar, Users
-} from 'lucide-react';
-import Logo from '../components/Logo';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCurrentUser, updateUserProfile, uploadUserPhoto, deleteUserPhoto, updateUserInterests, updateUserClubs } from '../lib/api';
-import { supabase } from '@/lib/supabase';
-import { toast } from "sonner";
-import { useAuth } from '@/contexts/AuthContext';
-import { UserGender, GenderPreference } from '@/types/database';
+import { toast } from 'sonner';
+import { getCurrentUser, updateUserProfile, uploadUserPhoto, deleteUserPhoto, updateUserInterests } from '../lib/api';
+import { ArrowLeft, Camera, Trash2, Plus, Loader2 } from 'lucide-react';
+import Logo from '../components/Logo';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import InterestSelector from '@/components/InterestSelector';
 
-interface UserProfileProps {
-  viewUserId?: string;
-}
-
-const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
+const UserProfile: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { signOut } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // State for edit mode
-  const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState('basic');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   
-  // Editable state
+  // Form state
+  const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [major, setMajor] = useState('');
-  const [gender, setGender] = useState<UserGender | ''>('');
-  const [genderPreference, setGenderPreference] = useState<GenderPreference>('everyone');
+  const [classYear, setClassYear] = useState('');
+  const [gender, setGender] = useState<string>('');
+  const [genderPreference, setGenderPreference] = useState<string>('');
+  const [intention, setIntention] = useState<string>('');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [selectedClubs, setSelectedClubs] = useState<string[]>([]);
-  const [newInterest, setNewInterest] = useState('');
-  const [availableInterests, setAvailableInterests] = useState<string[]>([]);
-  const [availableClubs, setAvailableClubs] = useState<string[]>([]);
-
-  // If we're viewing someone else's profile, we get their ID from the URL
-  const isViewingOthersProfile = !!viewUserId;
-
-  // Fetch user data - either current user or the specific user being viewed
+  
+  // Fetch current user data
   const { data: user, isLoading, error } = useQuery({
-    queryKey: isViewingOthersProfile ? ['user', viewUserId] : ['current-user'],
-    queryFn: isViewingOthersProfile 
-      ? async () => {
-          // Get the specific user by ID
-          const { data } = await supabase
-            .from('users')
-            .select(`
-              *,
-              interests:user_interests(name:interests(*)),
-              clubs:user_clubs(name:clubs(*))
-            `)
-            .eq('id', viewUserId)
-            .single();
-          return data;
-        }
-      : getCurrentUser
-  });
-
-  // Update state when user data is loaded
-  useEffect(() => {
-    if (user && !isViewingOthersProfile) {
-      setBio(user.bio || '');
-      setMajor(user.major || '');
-      setGender(user.gender || '');
-      setGenderPreference(user.gender_preference || 'everyone');
-      setSelectedInterests(user.interests.map(i => i.name.name));
-      setSelectedClubs(user.clubs.map(c => c.name.name));
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    onSuccess: (data) => {
+      if (data) {
+        setName(data.name || '');
+        setBio(data.bio || '');
+        setMajor(data.major || '');
+        setClassYear(data.class_year || '');
+        setGender(data.gender || '');
+        setGenderPreference(data.gender_preference || '');
+        setIntention(data.intention || '');
+        setPhotos(data.photo_urls || []);
+        
+        // Extract interest IDs from the nested structure
+        const interestIds = data.interests?.map(interest => {
+          if (interest.name && interest.name.id) {
+            return interest.name.id;
+          }
+          return '';
+        }).filter(Boolean) || [];
+        
+        setSelectedInterests(interestIds);
+      }
     }
-  }, [user, isViewingOthersProfile]);
-
-  // Fetch available interests and clubs
-  const { data: interestsClubs } = useQuery({
-    queryKey: ['interests-clubs'],
-    queryFn: async () => {
-      const [interestsRes, clubsRes] = await Promise.all([
-        supabase.from('interests').select('name').order('name'),
-        supabase.from('clubs').select('name').order('name')
-      ]);
-      
-      const interests = interestsRes.data?.map(i => i.name) || [];
-      const clubs = clubsRes.data?.map(c => c.name) || [];
-      
-      setAvailableInterests(interests);
-      setAvailableClubs(clubs);
-      
-      return { interests, clubs };
-    },
-    enabled: isEditing
   });
-
+  
   // Update profile mutation
   const updateProfileMutation = useMutation({
-    mutationFn: async () => {
-      // Update basic profile info
-      await updateUserProfile({ 
-        bio, 
-        major, 
-        gender: gender as UserGender, 
-        gender_preference: genderPreference 
-      });
-      
-      // Update interests and clubs
-      await Promise.all([
-        updateUserInterests(selectedInterests),
-        updateUserClubs(selectedClubs)
-      ]);
-    },
+    mutationFn: (profileData: any) => updateUserProfile(profileData),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['current-user'] });
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
       toast.success('Profile updated successfully');
-      setIsEditing(false);
     },
-    onError: () => {
-      toast.error('Failed to update profile');
+    onError: (error: any) => {
+      toast.error(`Failed to update profile: ${error.message}`);
     }
   });
-
-  const handleAddPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  
+  // Update interests mutation
+  const updateInterestsMutation = useMutation({
+    mutationFn: (interestIds: string[]) => updateUserInterests(interestIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      toast.success('Interests updated successfully');
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to update interests: ${error.message}`);
+    }
+  });
+  
+  // Handle form submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     
-    const file = files[0];
-    const MAX_SIZE_MB = 5;
+    const profileData = {
+      name,
+      bio,
+      major,
+      gender,
+      gender_preference: genderPreference,
+      intention,
+      profile_complete: true
+    };
     
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      toast.error(`File size should be less than ${MAX_SIZE_MB}MB`);
+    updateProfileMutation.mutate(profileData);
+  };
+  
+  // Handle interests update
+  const handleInterestsUpdate = () => {
+    updateInterestsMutation.mutate(selectedInterests);
+  };
+  
+  // Handle photo upload
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('File size must be less than 5MB');
       return;
     }
     
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Only image files are allowed');
+      return;
+    }
+    
+    setIsUploading(true);
+    setUploadError(null);
+    
     try {
-      // Calculate the next position
-      const position = user?.photo_urls?.length || 0;
-      
-      // Upload the photo
-      await uploadUserPhoto(file, position);
-      queryClient.invalidateQueries({ queryKey: ['current-user'] });
-      toast.success('Photo added successfully');
-    } catch (error) {
-      console.error('Error uploading photo:', error);
+      // Convert file to base64 for demo purposes
+      // In production, you'd upload to a storage service
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64 = reader.result as string;
+        
+        // Upload the photo
+        const updatedPhotos = await uploadUserPhoto(base64);
+        setPhotos(updatedPhotos);
+        setIsUploading(false);
+        toast.success('Photo uploaded successfully');
+      };
+    } catch (error: any) {
+      setIsUploading(false);
+      setUploadError(error.message);
       toast.error('Failed to upload photo');
     }
-    
-    // Reset input
-    e.target.value = '';
   };
   
+  // Handle photo deletion
   const handleDeletePhoto = async (photoUrl: string) => {
     try {
-      await deleteUserPhoto(photoUrl);
-      queryClient.invalidateQueries({ queryKey: ['current-user'] });
-      toast.success('Photo deleted');
-    } catch (error) {
-      console.error('Error deleting photo:', error);
-      toast.error('Failed to delete photo');
+      const updatedPhotos = await deleteUserPhoto(photoUrl);
+      setPhotos(updatedPhotos);
+      toast.success('Photo deleted successfully');
+    } catch (error: any) {
+      toast.error(`Failed to delete photo: ${error.message}`);
     }
   };
   
-  const handleSaveProfile = () => {
-    updateProfileMutation.mutate();
-  };
-  
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      navigate('/');
-      toast.success("Logged out successfully");
-    } catch (error) {
-      console.error('Error logging out:', error);
-      toast.error("Error logging out");
-    }
-  };
-  
-  const toggleInterest = (interest: string) => {
-    if (selectedInterests.includes(interest)) {
-      setSelectedInterests(selectedInterests.filter(i => i !== interest));
-    } else {
-      // Limit to 5 interests
-      if (selectedInterests.length >= 5) {
-        toast.error('You can select up to 5 interests');
-        return;
-      }
-      setSelectedInterests([...selectedInterests, interest]);
-    }
-  };
-  
-  const toggleClub = (club: string) => {
-    if (selectedClubs.includes(club)) {
-      setSelectedClubs(selectedClubs.filter(c => c !== club));
-    } else {
-      // Limit to 3 clubs
-      if (selectedClubs.length >= 3) {
-        toast.error('You can select up to 3 clubs');
-        return;
-      }
-      setSelectedClubs([...selectedClubs, club]);
-    }
-  };
-  
-  const addNewInterest = () => {
-    if (!newInterest.trim()) return;
-    
-    // Check if it already exists
-    if (availableInterests.includes(newInterest) || selectedInterests.includes(newInterest)) {
-      toast.error('This interest already exists');
-      return;
-    }
-    
-    // Check max interests
-    if (selectedInterests.length >= 5) {
-      toast.error('You can select up to 5 interests');
-      return;
-    }
-    
-    // Add to selected
-    setSelectedInterests([...selectedInterests, newInterest]);
-    setAvailableInterests([...availableInterests, newInterest]);
-    setNewInterest('');
-  };
-
-  // Get the profile photo URL
-  const profilePhotoUrl = user?.photo_urls?.[0] || '/placeholder.svg';
-
-  // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-black to-[#121212]">
-        <div className="text-princeton-white mb-4 animate-pulse">Loading profile...</div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error || !user) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-black to-[#121212]">
-        <div className="text-princeton-white mb-4">Error loading profile</div>
-        <button 
-          onClick={() => navigate('/swipe')}
-          className="px-4 py-2 bg-princeton-orange text-black rounded-lg"
-        >
-          Back to Swiping
-        </button>
-      </div>
-    );
-  }
-
-  // Viewing someone else's profile (read-only)
-  if (isViewingOthersProfile) {
-    return (
-      <div className="min-h-screen flex flex-col bg-gradient-to-b from-black to-[#121212]">
-        <header className="container mx-auto px-4 py-6 flex justify-between items-center">
+      <div className="min-h-screen bg-gradient-to-b from-black to-[#121212] p-4">
+        <header className="container mx-auto px-4 py-4 flex items-center">
           <button 
             onClick={() => navigate(-1)}
-            className="text-princeton-white hover:text-princeton-orange transition-colors"
+            className="text-princeton-white hover:text-princeton-orange transition-colors mr-4"
           >
             <ArrowLeft size={24} />
           </button>
           <Logo />
-          <div className="w-8"></div> {/* Empty space for balance */}
         </header>
-  
-        <main className="flex-1 container mx-auto px-4 py-6 pb-20">
-          <div className="flex flex-col items-center">
-            {/* Profile photo */}
-            <div className="relative mb-6">
-              <img 
-                src={profilePhotoUrl}
-                alt={user.name}
-                className="w-24 h-24 rounded-full object-cover border-2 border-princeton-orange"
-              />
-            </div>
-            
-            {/* User info */}
-            <div className="text-center mb-6">
-              <h1 className="text-2xl font-bold text-princeton-white">
-                {user.name}, <span className="text-princeton-orange">{user.class_year}</span>
-              </h1>
-              
-              {user.building && (
-                <div className="flex items-center justify-center mt-1 text-sm text-princeton-white/70">
-                  <MapPin size={14} className="mr-1" />
-                  <span>{user.building}</span>
-                </div>
-              )}
-              
-              {user.vibe && (
-                <div className="mt-2 inline-block px-3 py-1 bg-princeton-orange/20 text-princeton-orange rounded-full text-sm">
-                  {user.vibe}
-                </div>
-              )}
-            </div>
+        
+        <main className="container mx-auto px-4 py-6 max-w-2xl">
+          <h1 className="text-2xl font-bold text-princeton-white mb-6">Your Profile</h1>
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
           </div>
-          
-          {/* Bio */}
-          <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
-            <h2 className="text-lg font-semibold text-princeton-white mb-3">About</h2>
-            <p className="text-princeton-white/80">{user.bio || "No bio added yet"}</p>
-          </div>
-          
-          {/* Interests */}
-          <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
-            <h2 className="text-lg font-semibold text-princeton-white mb-3">Interests</h2>
-            <div className="flex flex-wrap gap-2">
-              {user.interests && user.interests.length > 0 ? (
-                user.interests.map((interest, index) => (
-                  <div 
-                    key={index}
-                    className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm"
-                  >
-                    {interest.name.name}
-                  </div>
-                ))
-              ) : (
-                <p className="text-princeton-white/60">No interests added yet</p>
-              )}
-            </div>
-          </div>
-          
-          {/* Princeton Info */}
-          <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
-            <h2 className="text-lg font-semibold text-princeton-white mb-3">Princeton Info</h2>
-            <div className="space-y-3 text-princeton-white/80">
-              <div className="flex items-start gap-2">
-                <GraduationCap className="text-princeton-orange mt-1" size={18} />
-                <div>Major: {user.major || "Not specified"}</div>
-              </div>
-              
-              <div className="flex items-start gap-2">
-                <Calendar className="text-princeton-orange mt-1" size={18} />
-                <div>Class of {user.class_year}</div>
-              </div>
-              
-              <div className="flex items-start gap-2">
-                <Users className="text-princeton-orange mt-1" size={18} />
-                <div>
-                  Clubs: {user.clubs && user.clubs.length > 0 
-                    ? user.clubs.map(club => club.name.name).join(', ') 
-                    : "None added yet"}
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Photos */}
-          {user.photo_urls && user.photo_urls.length > 0 && (
-            <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
-              <h2 className="text-lg font-semibold text-princeton-white mb-3">Photos</h2>
-              <div className="grid grid-cols-3 gap-2">
-                {user.photo_urls.map((photoUrl, index) => (
-                  <div className="aspect-square" key={index}>
-                    <img 
-                      src={photoUrl} 
-                      alt={`${user.name} photo ${index + 1}`} 
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          <button 
-            onClick={() => navigate(-1)}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-princeton-orange rounded-lg text-black hover:bg-princeton-orange/90 transition-colors"
-          >
-            <ArrowLeft size={18} />
-            <span>Back</span>
-          </button>
         </main>
       </div>
     );
   }
-
-  // The rest of the component - editing own profile
+  
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-black to-[#121212] p-4">
+        <header className="container mx-auto px-4 py-4 flex items-center">
+          <button 
+            onClick={() => navigate(-1)}
+            className="text-princeton-white hover:text-princeton-orange transition-colors mr-4"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <Logo />
+        </header>
+        
+        <main className="container mx-auto px-4 py-6 max-w-2xl">
+          <div className="text-center py-10">
+            <div className="text-red-500 mb-2">Failed to load profile</div>
+            <button 
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['currentUser'] })}
+              className="text-princeton-orange underline"
+            >
+              Try again
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+  
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-black to-[#121212]">
-      <header className="container mx-auto px-4 py-6 flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-b from-black to-[#121212] p-4">
+      <header className="container mx-auto px-4 py-4 flex items-center">
         <button 
-          onClick={() => isEditing ? setIsEditing(false) : navigate('/swipe')}
-          className="text-princeton-white hover:text-princeton-orange transition-colors"
+          onClick={() => navigate(-1)}
+          className="text-princeton-white hover:text-princeton-orange transition-colors mr-4"
         >
           <ArrowLeft size={24} />
         </button>
         <Logo />
-        {isEditing ? (
-          <button 
-            onClick={handleSaveProfile} 
-            className="text-princeton-white hover:text-princeton-orange transition-colors"
-            disabled={updateProfileMutation.isPending}
-          >
-            <Save size={24} />
-          </button>
-        ) : (
-          <button 
-            onClick={() => navigate('/settings')}
-            className="text-princeton-white hover:text-princeton-orange transition-colors"
-          >
-            <Settings size={24} />
-          </button>
-        )}
       </header>
-
-      <main className="flex-1 container mx-auto px-4 py-6 pb-20">
-        <div className="flex flex-col items-center">
-          {/* Profile photo */}
-          <div className="relative mb-6">
-            <img 
-              src={profilePhotoUrl}
-              alt={user.name}
-              className="w-24 h-24 rounded-full object-cover border-2 border-princeton-orange"
-            />
-            <input 
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept="image/*"
-              onChange={handleAddPhoto}
-            />
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="absolute bottom-0 right-0 w-8 h-8 bg-princeton-orange rounded-full flex items-center justify-center"
-            >
-              <Camera size={16} className="text-black" />
-            </button>
-          </div>
-          
-          {/* User info */}
-          <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-princeton-white">
-              {user.name}, <span className="text-princeton-orange">{user.class_year}</span>
-            </h1>
-            
-            {!isEditing && user.building && (
-              <div className="flex items-center justify-center mt-1 text-sm text-princeton-white/70">
-                <MapPin size={14} className="mr-1" />
-                <span>{user.building}</span>
-              </div>
-            )}
-            
-            {!isEditing && user.vibe && (
-              <div className="mt-2 inline-block px-3 py-1 bg-princeton-orange/20 text-princeton-orange rounded-full text-sm">
-                {user.vibe}
-              </div>
-            )}
-            
-            {!isEditing && (
-              <div className="mt-2 flex justify-center gap-2">
-                <div className="inline-block px-3 py-1 bg-secondary/70 text-princeton-white/80 rounded-full text-sm flex items-center">
-                  <Users size={14} className="mr-1" />
-                  {user.gender_preference === 'everyone' 
-                    ? 'Into Everyone' 
-                    : `Into ${user.gender_preference === 'male' ? 'Men' : 'Women'}`
-                  }
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+      
+      <main className="container mx-auto px-4 py-6 max-w-2xl">
+        <h1 className="text-2xl font-bold text-princeton-white mb-6">Your Profile</h1>
         
-        {/* Edit mode: gender preferences */}
-        {isEditing && (
-          <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
-            <h2 className="text-lg font-semibold text-princeton-white mb-4">About You</h2>
-            
-            <div className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-3 mb-6">
+            <TabsTrigger value="basic">Basic Info</TabsTrigger>
+            <TabsTrigger value="photos">Photos</TabsTrigger>
+            <TabsTrigger value="interests">Interests</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="basic">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <label className="block text-sm text-princeton-white/80">
-                  Your Gender
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: 'male', label: 'Male' },
-                    { value: 'female', label: 'Female' },
-                    { value: 'non-binary', label: 'Non-binary' },
-                    { value: 'other', label: 'Other' }
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setGender(option.value as UserGender)}
-                      className={`p-3 rounded-lg border text-center transition-all duration-200 ${
-                        gender === option.value
-                          ? 'bg-princeton-orange text-princeton-black border-princeton-orange'
-                          : 'bg-secondary text-princeton-white border-princeton-orange/30 hover:border-princeton-orange/60'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
+                <Label htmlFor="name" className="text-princeton-white">Name</Label>
+                <Input 
+                  id="name" 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)} 
+                  className="bg-secondary border-princeton-orange/30 text-princeton-white"
+                  placeholder="Your name"
+                />
               </div>
               
               <div className="space-y-2">
-                <label className="block text-sm text-princeton-white/80">
-                  Show Me
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: 'male', label: 'Men' },
-                    { value: 'female', label: 'Women' },
-                    { value: 'everyone', label: 'Everyone' }
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setGenderPreference(option.value as GenderPreference)}
-                      className={`p-3 rounded-lg border text-center transition-all duration-200 ${
-                        genderPreference === option.value
-                          ? 'bg-princeton-orange text-princeton-black border-princeton-orange'
-                          : 'bg-secondary text-princeton-white border-princeton-orange/30 hover:border-princeton-orange/60'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
+                <Label htmlFor="bio" className="text-princeton-white">Bio</Label>
+                <Textarea 
+                  id="bio" 
+                  value={bio} 
+                  onChange={(e) => setBio(e.target.value)} 
+                  className="bg-secondary border-princeton-orange/30 text-princeton-white min-h-[100px]"
+                  placeholder="Tell others about yourself"
+                />
               </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Bio */}
-        <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-princeton-white">About</h2>
-            {!isEditing && (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="text-princeton-orange"
+              
+              <div className="space-y-2">
+                <Label htmlFor="major" className="text-princeton-white">Major</Label>
+                <Input 
+                  id="major" 
+                  value={major} 
+                  onChange={(e) => setMajor(e.target.value)} 
+                  className="bg-secondary border-princeton-orange/30 text-princeton-white"
+                  placeholder="Your major"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-princeton-white">Gender</Label>
+                <RadioGroup value={gender} onValueChange={setGender} className="flex flex-col space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="male" id="male" />
+                    <Label htmlFor="male" className="text-princeton-white">Male</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="female" id="female" />
+                    <Label htmlFor="female" className="text-princeton-white">Female</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="non-binary" id="non-binary" />
+                    <Label htmlFor="non-binary" className="text-princeton-white">Non-binary</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="other" id="other" />
+                    <Label htmlFor="other" className="text-princeton-white">Other</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-princeton-white">Interested In</Label>
+                <RadioGroup value={genderPreference} onValueChange={setGenderPreference} className="flex flex-col space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="male" id="pref-male" />
+                    <Label htmlFor="pref-male" className="text-princeton-white">Men</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="female" id="pref-female" />
+                    <Label htmlFor="pref-female" className="text-princeton-white">Women</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="everyone" id="pref-everyone" />
+                    <Label htmlFor="pref-everyone" className="text-princeton-white">Everyone</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-princeton-white">Looking For</Label>
+                <RadioGroup value={intention} onValueChange={setIntention} className="flex flex-col space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="casual" id="casual" />
+                    <Label htmlFor="casual" className="text-princeton-white">Something Casual</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="serious" id="serious" />
+                    <Label htmlFor="serious" className="text-princeton-white">Something Serious</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              
+              <Button 
+                type="submit" 
+                className="w-full bg-princeton-orange hover:bg-princeton-orange/90 text-black"
+                disabled={updateProfileMutation.isPending}
               >
-                <Edit size={18} />
-              </button>
-            )}
-          </div>
+                {updateProfileMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : 'Save Changes'}
+              </Button>
+            </form>
+          </TabsContent>
           
-          {isEditing ? (
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Tell others about yourself..."
-              rows={4}
-              className="w-full p-3 rounded-lg bg-secondary border border-princeton-orange/30 text-princeton-white placeholder:text-princeton-white/50 focus:ring-2 focus:ring-princeton-orange focus:outline-none resize-none"
-            />
-          ) : (
-            <p className="text-princeton-white/80">{user.bio || "No bio added yet"}</p>
-          )}
-        </div>
-        
-        {/* Interests */}
-        <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-princeton-white">Interests</h2>
-            {!isEditing && (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="text-princeton-orange"
-              >
-                <Edit size={18} />
-              </button>
-            )}
-          </div>
-          
-          {isEditing ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {selectedInterests.map((interest) => (
-                  <button
-                    key={interest}
-                    onClick={() => toggleInterest(interest)}
-                    className="px-3 py-1 bg-princeton-orange text-black rounded-full text-sm flex items-center gap-1"
-                  >
-                    {interest}
-                    <X size={14} />
-                  </button>
+          <TabsContent value="photos">
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                {photos.map((photo, index) => (
+                  <div key={index} className="relative aspect-square rounded-lg overflow-hidden">
+                    <img 
+                      src={photo} 
+                      alt={`Profile photo ${index + 1}`} 
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      onClick={() => handleDeletePhoto(photo)}
+                      className="absolute top-2 right-2 bg-black/50 p-1 rounded-full text-white hover:bg-red-500/80"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 ))}
-              </div>
-              
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={newInterest}
-                  onChange={(e) => setNewInterest(e.target.value)}
-                  placeholder="Add new interest..."
-                  className="flex-1 p-2 rounded-lg bg-secondary border border-princeton-orange/30 text-princeton-white placeholder:text-princeton-white/50 focus:ring-2 focus:ring-princeton-orange focus:outline-none text-sm"
-                />
-                <button
-                  onClick={addNewInterest}
-                  disabled={!newInterest.trim() || selectedInterests.length >= 5}
-                  className="px-3 py-1 bg-princeton-orange text-black rounded-lg text-sm disabled:opacity-50"
-                >
-                  Add
-                </button>
-              </div>
-              
-              <div className="max-h-32 overflow-y-auto bg-secondary/50 rounded-lg p-2">
-                <div className="flex flex-wrap gap-2">
-                  {availableInterests
-                    .filter(interest => !selectedInterests.includes(interest))
-                    .map((interest) => (
-                      <button
-                        key={interest}
-                        onClick={() => toggleInterest(interest)}
-                        disabled={selectedInterests.length >= 5}
-                        className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm hover:bg-secondary/80 disabled:opacity-50"
-                      >
-                        {interest}
-                      </button>
-                    ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {user.interests && user.interests.length > 0 ? (
-                user.interests.map((interest, index) => (
-                  <div 
-                    key={index}
-                    className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm"
-                  >
-                    {interest.name.name}
-                  </div>
-                ))
-              ) : (
-                <p className="text-princeton-white/60">No interests added yet</p>
-              )}
-            </div>
-          )}
-        </div>
-        
-        {/* Princeton Info */}
-        <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-princeton-white">Princeton Info</h2>
-            {!isEditing && (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="text-princeton-orange"
-              >
-                <Edit size={18} />
-              </button>
-            )}
-          </div>
-          
-          <div className="space-y-3 text-princeton-white/80">
-            <div className="flex items-start gap-2">
-              <GraduationCap className="text-princeton-orange mt-1" size={18} />
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={major}
-                  onChange={(e) => setMajor(e.target.value)}
-                  placeholder="Your major..."
-                  className="flex-1 p-2 rounded-lg bg-secondary border border-princeton-orange/30 text-princeton-white placeholder:text-princeton-white/50 focus:ring-2 focus:ring-princeton-orange focus:outline-none"
-                />
-              ) : (
-                <div>Major: {user.major || "Not specified"}</div>
-              )}
-            </div>
-            
-            <div className="flex items-start gap-2">
-              <Calendar className="text-princeton-orange mt-1" size={18} />
-              <div>Class of {user.class_year}</div>
-            </div>
-            
-            {isEditing ? (
-              <div className="space-y-2 mt-2">
-                <label className="block text-sm text-princeton-white/80">Clubs:</label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {selectedClubs.map((club) => (
-                    <button
-                      key={club}
-                      onClick={() => toggleClub(club)}
-                      className="px-3 py-1 bg-princeton-orange text-black rounded-full text-sm flex items-center gap-1"
-                    >
-                      {club}
-                      <X size={14} />
-                    </button>
-                  ))}
-                </div>
                 
-                <div className="max-h-32 overflow-y-auto bg-secondary/50 rounded-lg p-2">
-                  <div className="flex flex-wrap gap-2">
-                    {availableClubs
-                      .filter(club => !selectedClubs.includes(club))
-                      .map((club) => (
-                        <button
-                          key={club}
-                          onClick={() => toggleClub(club)}
-                          disabled={selectedClubs.length >= 3}
-                          className="px-3 py-1 bg-secondary text-princeton-white/80 rounded-full text-sm hover:bg-secondary/80 disabled:opacity-50"
-                        >
-                          {club}
-                        </button>
-                      ))}
-                  </div>
-                </div>
+                {photos.length < 6 && (
+                  <label className="aspect-square rounded-lg border-2 border-dashed border-princeton-orange/50 flex flex-col items-center justify-center cursor-pointer hover:bg-princeton-orange/10 transition-colors">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={handlePhotoUpload}
+                      disabled={isUploading}
+                    />
+                    {isUploading ? (
+                      <Loader2 className="h-8 w-8 text-princeton-orange animate-spin" />
+                    ) : (
+                      <>
+                        <Camera size={32} className="text-princeton-orange mb-2" />
+                        <span className="text-sm text-princeton-orange">Add Photo</span>
+                      </>
+                    )}
+                  </label>
+                )}
               </div>
-            ) : (
-              <div className="flex items-start gap-2">
-                <Users className="text-princeton-orange mt-1" size={18} />
-                <div>
-                  Clubs: {user.clubs && user.clubs.length > 0 
-                    ? user.clubs.map(club => club.name.name).join(', ') 
-                    : "None added yet"}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {/* Photos */}
-        <div className="profile-card bg-secondary/50 rounded-lg p-4 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-princeton-white">Photos</h2>
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="text-princeton-orange"
-            >
-              <Camera size={18} />
-            </button>
-          </div>
-          
-          {user.photo_urls && user.photo_urls.length > 0 ? (
-            <div className="grid grid-cols-3 gap-2">
-              {user.photo_urls.map((photoUrl, index) => (
-                <div className="relative aspect-square" key={index}>
-                  <img 
-                    src={photoUrl} 
-                    alt={`${user.name} photo ${index + 1}`} 
-                    className="w-full h-full object-cover rounded-lg"
-                  />
-                  <button
-                    onClick={() => handleDeletePhoto(photoUrl)}
-                    className="absolute top-1 right-1 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center text-white hover:bg-red-500"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
               
-              {[...Array(Math.max(0, 6 - (user.photo_urls?.length || 0)))].map((_, index) => (
-                <button
-                  key={`empty-${index}`}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="aspect-square rounded-lg border-2 border-dashed border-princeton-orange/30 flex items-center justify-center"
-                >
-                  <Camera size={20} className="text-princeton-white/60" />
-                </button>
-              ))}
+              {uploadError && (
+                <div className="text-red-500 text-sm">{uploadError}</div>
+              )}
+              
+              <div className="text-sm text-princeton-white/70">
+                <p>Add up to 6 photos to show off your best self.</p>
+                <p>First photo will be your main profile picture.</p>
+              </div>
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <Camera size={32} className="mx-auto mb-2 text-princeton-white/40" />
-              <p className="text-princeton-white/60">No photos yet</p>
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="mt-2 px-4 py-2 bg-princeton-orange text-black rounded-lg text-sm"
-              >
-                Add Photos
-              </button>
-            </div>
-          )}
+          </TabsContent>
           
-          <div className="text-xs text-princeton-white/60 mt-2 text-center">
-            First photo is your profile picture
-          </div>
-        </div>
-        
-        <button 
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 py-3 border border-red-500 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
-        >
-          <LogOut size={18} />
-          <span>Log Out</span>
-        </button>
+          <TabsContent value="interests">
+            <div className="space-y-6">
+              <InterestSelector 
+                selectedInterests={selectedInterests}
+                onChange={setSelectedInterests}
+              />
+              
+              <Button 
+                onClick={handleInterestsUpdate}
+                className="w-full bg-princeton-orange hover:bg-princeton-orange/90 text-black"
+                disabled={updateInterestsMutation.isPending}
+              >
+                {updateInterestsMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : 'Save Interests'}
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

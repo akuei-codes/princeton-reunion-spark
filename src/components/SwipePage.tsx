@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -10,8 +11,29 @@ import ProfileCompletionNotification from './ProfileCompletionNotification';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
+// Define a proper type for PotentialMatch that satisfies UserWithRelations
+interface PotentialMatch {
+  auth_id: string;
+  id: string;
+  name: string;
+  class_year: string;
+  bio?: string;
+  major?: string;
+  photo_urls?: string[];
+  gender?: string;
+  gender_preference?: string;
+  profile_complete: boolean;
+  intention?: 'casual' | 'serious';
+  interests: { name: { name: string } }[];
+  // Adding missing properties to match UserWithRelations
+  clubs: { name: { name: string } }[];
+  role: string;
+  created_at: string;
+  updated_at: string;
+}
+
 interface SwipeCardProps {
-  user: UserWithRelations;
+  user: PotentialMatch;
   onSwipe: (direction: 'left' | 'right') => void;
 }
 

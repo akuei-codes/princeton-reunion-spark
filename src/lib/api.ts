@@ -568,7 +568,6 @@ export const getUserLikers = async () => {
     // Filter out users the current user has already swiped on
     const filteredLikerIds = likerSwipes
       .filter(swipe => swipe.users && swipe.users.auth_id)
-      .filter(swipe => !alreadySwipedUserIds.includes(swipe.user_id))
       .map(swipe => swipe.users.auth_id);
 
     // No likers

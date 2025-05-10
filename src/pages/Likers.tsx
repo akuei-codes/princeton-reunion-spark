@@ -170,14 +170,10 @@ const LikersPage: React.FC = () => {
                 <h2 className="text-xl font-bold text-princeton-white">{user.name}, {user.class_year}</h2>
                 {user.major && <p className="text-princeton-orange">{user.major}</p>}
                 
-                {/* Intention */}
+                {/* Intention - Simplified */}
                 {user.intention && (
                   <div className="text-xs text-princeton-orange font-medium mt-1 mb-2">
-                    {user.intention === "casual" ? (
-                      <span>🌙 Let's Just See Where the Night Takes Us</span>
-                    ) : user.intention === "serious" ? (
-                      <span>💑 Looking for Something Deeper</span>
-                    ) : null}
+                    {user.intention === "casual" ? "Casual" : "Serious"}
                   </div>
                 )}
                 

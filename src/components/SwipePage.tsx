@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Heart, X, Moon, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getPotentialMatches, recordSwipe } from '@/lib/api';
@@ -120,32 +119,14 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
     );
   };
 
-  // Render relationship intention
+  // Render relationship intention (removed the emojis and specific text)
   const renderIntention = () => {
-    // Use optional chaining to safely access the intention property
     const intention = user.intention;
     if (!intention) return null;
     
-    let icon;
-    let text = "";
-    
-    switch(intention) {
-      case "casual":
-        icon = <Moon size={14} className="mr-1" />;
-        text = "🌙 Let's Just See Where the Night Takes Us";
-        break;
-      case "serious":
-        icon = <Users size={14} className="mr-1" />;
-        text = "💑 Looking for Something Deeper";
-        break;
-      default:
-        return null;
-    }
-    
     return (
       <div className="flex items-center text-xs text-princeton-orange font-medium mb-2">
-        {icon}
-        <span>{text}</span>
+        <span>{intention === 'casual' ? 'Casual' : 'Serious'}</span>
       </div>
     );
   };

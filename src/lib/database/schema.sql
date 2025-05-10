@@ -252,3 +252,25 @@ CREATE POLICY messages_insert_policy ON messages
       user_id_2 IN (SELECT id FROM users WHERE auth_id = auth.uid()::text)
     )
   );
+
+-- Create a function to get users who have liked the current user but haven't been swiped on yet
+CREATE OR REPLACE FUNCTION get_user_admirers(current_user_id UUID)
+RETURNS SETOF users AS $$
+BEGIN
+  RETURN QUERY
+  SELECT u.*
+  FROM users u
+  JOIN swipes s ON s.swiper_id = u.id
+  JOIN users target ON s.swiped_id = current_user_id
+  WHERE s.direction = 'right'
+  AND NOT EXISTS (
+    -- Check if current user has already swiped on this user
+    SELECT 1 FROM swipes
+    WHERE swiper_id = current_user_id
+    AND swiped_id = u.id
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execution permission to all users
+GRANT EXECUTE ON FUNCTION get_user_admirers(UUID) TO public;

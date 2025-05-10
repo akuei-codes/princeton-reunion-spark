@@ -2,8 +2,8 @@
 // We're directly using the Cloudinary Upload Widget approach which works in browsers
 // instead of using the Node.js SDK which requires 'fs'
 
-// Updated to use the correct preset name and folder
-const CLOUDINARY_PRESET = 'ml_default'; // Using default unsigned preset
+// Using correct preset name and cloud name
+const CLOUDINARY_PRESET = 'ml_default'; // Default unsigned preset
 const CLOUDINARY_CLOUD_NAME = 'dmm2mff5r';
 
 export const uploadToCloudinary = async (file: File): Promise<string> => {

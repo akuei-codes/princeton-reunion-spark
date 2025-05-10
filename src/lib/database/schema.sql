@@ -8,7 +8,7 @@ CREATE TYPE user_gender AS ENUM ('male', 'female', 'non-binary', 'other');
 CREATE TYPE gender_preference AS ENUM ('male', 'female', 'everyone');
 CREATE TYPE user_intention AS ENUM ('casual', 'serious'); -- Added intention enum
 
--- Create users table with photo_urls array
+-- Create users table with photo_urls array and settings JSONB column
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   auth_id TEXT UNIQUE NOT NULL,
@@ -27,6 +27,7 @@ CREATE TABLE users (
   photo_urls TEXT[] DEFAULT '{}', -- Store Cloudinary URLs as an array
   profile_complete BOOLEAN DEFAULT FALSE,
   intention user_intention DEFAULT 'casual', -- Added intention column
+  settings JSONB DEFAULT '{}', -- Added settings column as JSONB
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

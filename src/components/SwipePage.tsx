@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -22,7 +23,7 @@ interface PotentialMatch {
   photo_urls?: string[];
   gender?: string;
   gender_preference?: string;
-  profile_complete: boolean;
+  profile_complete?: boolean; // Make profile_complete optional to match UserWithRelations
   intention?: 'casual' | 'serious';
   interests: { name: { name: string } }[];
   // Adding missing properties to match UserWithRelations

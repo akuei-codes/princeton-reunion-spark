@@ -40,7 +40,8 @@ const Profile: React.FC = () => {
     return null; // Will redirect via the useEffect
   }
   
-  return <UserProfile viewUserId={id || undefined} />;
+  // Pass viewUserId as a prop to UserProfile
+  return <UserProfile viewUserId={id} />;
 };
 
 export default Profile;

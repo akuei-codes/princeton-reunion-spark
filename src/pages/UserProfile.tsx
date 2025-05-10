@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { getCurrentUser, updateUserProfile, uploadUserPhoto, deleteUserPhoto, updateUserInterests } from '../lib/api';
+import { getCurrentUser, getUserById, updateUserProfile, uploadUserPhoto, deleteUserPhoto, updateUserInterests } from '../lib/api';
 import { ArrowLeft, Camera, Trash2, Plus, Loader2 } from 'lucide-react';
 import Logo from '../components/Logo';
 import { Button } from '@/components/ui/button';
@@ -15,8 +16,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import InterestSelector from '@/components/InterestSelector';
+import { UserVibe } from '@/types/database';
 
-const UserProfile: React.FC = () => {
+interface UserProfileProps {
+  viewUserId?: string;
+}
+
+const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('basic');
@@ -30,37 +36,44 @@ const UserProfile: React.FC = () => {
   const [classYear, setClassYear] = useState('');
   const [gender, setGender] = useState<string>('');
   const [genderPreference, setGenderPreference] = useState<string>('');
-  const [intention, setIntention] = useState<string>('');
+  const [vibe, setVibe] = useState<string>('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   
-  // Fetch current user data
+  // Fetch user data - either current user or viewed user
   const { data: user, isLoading, error } = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: getCurrentUser,
-    onSuccess: (data) => {
-      if (data) {
-        setName(data.name || '');
-        setBio(data.bio || '');
-        setMajor(data.major || '');
-        setClassYear(data.class_year || '');
-        setGender(data.gender || '');
-        setGenderPreference(data.gender_preference || '');
-        setIntention(data.intention || '');
-        setPhotos(data.photo_urls || []);
-        
-        // Extract interest IDs from the nested structure
-        const interestIds = data.interests?.map(interest => {
-          if (interest.name && interest.name.id) {
-            return interest.name.id;
-          }
-          return '';
-        }).filter(Boolean) || [];
-        
-        setSelectedInterests(interestIds);
+    queryKey: viewUserId ? ['user', viewUserId] : ['currentUser'],
+    queryFn: () => viewUserId ? getUserById(viewUserId) : getCurrentUser(),
+    meta: {
+      onError: (error: any) => {
+        toast.error(`Failed to load profile: ${error.message}`);
       }
     }
   });
+  
+  // Update state when user data changes
+  useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setBio(user.bio || '');
+      setMajor(user.major || '');
+      setClassYear(user.class_year || '');
+      setGender(user.gender || '');
+      setGenderPreference(user.gender_preference || '');
+      setVibe(user.vibe || '');
+      setPhotos(user.photo_urls || []);
+      
+      // Extract interest IDs from the nested structure
+      const interestIds = user.interests?.map(interest => {
+        if (interest.name && interest.name.id) {
+          return interest.name.id;
+        }
+        return '';
+      }).filter(Boolean) || [];
+      
+      setSelectedInterests(interestIds);
+    }
+  }, [user]);
   
   // Update profile mutation
   const updateProfileMutation = useMutation({
@@ -96,7 +109,6 @@ const UserProfile: React.FC = () => {
       major,
       gender,
       gender_preference: genderPreference,
-      intention,
       profile_complete: true
     };
     
@@ -160,6 +172,9 @@ const UserProfile: React.FC = () => {
     }
   };
   
+  // Viewing another user's profile
+  const isViewingOtherUser = !!viewUserId;
+  
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-black to-[#121212] p-4">
@@ -174,7 +189,7 @@ const UserProfile: React.FC = () => {
         </header>
         
         <main className="container mx-auto px-4 py-6 max-w-2xl">
-          <h1 className="text-2xl font-bold text-princeton-white mb-6">Your Profile</h1>
+          <h1 className="text-2xl font-bold text-princeton-white mb-6">{isViewingOtherUser ? 'Profile' : 'Your Profile'}</h1>
           <div className="space-y-4">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-32 w-full" />
@@ -203,11 +218,127 @@ const UserProfile: React.FC = () => {
           <div className="text-center py-10">
             <div className="text-red-500 mb-2">Failed to load profile</div>
             <button 
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['currentUser'] })}
+              onClick={() => queryClient.invalidateQueries({ queryKey: viewUserId ? ['user', viewUserId] : ['currentUser'] })}
               className="text-princeton-orange underline"
             >
               Try again
             </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+  
+  // Display either view mode or edit mode based on whether we're viewing another user's profile
+  if (isViewingOtherUser) {
+    // View only profile for other users
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-black to-[#121212] p-4">
+        <header className="container mx-auto px-4 py-4 flex items-center">
+          <button 
+            onClick={() => navigate(-1)}
+            className="text-princeton-white hover:text-princeton-orange transition-colors mr-4"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <Logo />
+        </header>
+        
+        <main className="container mx-auto px-4 py-6 max-w-2xl">
+          <h1 className="text-2xl font-bold text-princeton-white mb-6">{name}'s Profile</h1>
+          
+          {/* Photos */}
+          {photos && photos.length > 0 && (
+            <div className="mb-8">
+              <div className="aspect-[4/5] rounded-lg overflow-hidden mb-4">
+                <img 
+                  src={photos[0]} 
+                  alt={name} 
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              
+              {photos.length > 1 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {photos.slice(1).map((photo, index) => (
+                    <div key={index} className="aspect-square rounded-lg overflow-hidden">
+                      <img 
+                        src={photo} 
+                        alt={`${name} ${index + 2}`} 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Basic info */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-princeton-white mb-2">About</h2>
+            <div className="bg-secondary rounded-lg p-4 text-princeton-white">
+              <div className="mb-4">
+                <h3 className="text-sm text-princeton-white/60 mb-1">Name</h3>
+                <p>{name}</p>
+              </div>
+              
+              <div className="mb-4">
+                <h3 className="text-sm text-princeton-white/60 mb-1">Bio</h3>
+                <p>{bio || 'No bio provided'}</p>
+              </div>
+              
+              <div className="mb-4">
+                <h3 className="text-sm text-princeton-white/60 mb-1">Major</h3>
+                <p>{major || 'Not specified'}</p>
+              </div>
+              
+              <div className="mb-4">
+                <h3 className="text-sm text-princeton-white/60 mb-1">Class Year</h3>
+                <p>{classYear || 'Not specified'}</p>
+              </div>
+              
+              <div className="mb-4">
+                <h3 className="text-sm text-princeton-white/60 mb-1">Vibe</h3>
+                <p>{vibe || 'Not specified'}</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Interests */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-princeton-white mb-2">Interests</h2>
+            <div className="bg-secondary rounded-lg p-4">
+              <div className="flex flex-wrap gap-2">
+                {user?.interests && user.interests.length > 0 ? (
+                  user.interests.map((interest, index) => (
+                    <Badge key={index} className="bg-princeton-orange/70 text-black">
+                      {interest.name.name}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-princeton-white/60">No interests listed</p>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Clubs */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-princeton-white mb-2">Clubs</h2>
+            <div className="bg-secondary rounded-lg p-4">
+              <div className="flex flex-wrap gap-2">
+                {user?.clubs && user.clubs.length > 0 ? (
+                  user.clubs.map((club, index) => (
+                    <Badge key={index} variant="outline" className="border-princeton-orange text-princeton-white">
+                      {club.name.name}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-princeton-white/60">No clubs listed</p>
+                )}
+              </div>
+            </div>
           </div>
         </main>
       </div>
@@ -307,20 +438,6 @@ const UserProfile: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="everyone" id="pref-everyone" />
                     <Label htmlFor="pref-everyone" className="text-princeton-white">Everyone</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-              
-              <div className="space-y-2">
-                <Label className="text-princeton-white">Looking For</Label>
-                <RadioGroup value={intention} onValueChange={setIntention} className="flex flex-col space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="casual" id="casual" />
-                    <Label htmlFor="casual" className="text-princeton-white">Something Casual</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="serious" id="serious" />
-                    <Label htmlFor="serious" className="text-princeton-white">Something Serious</Label>
                   </div>
                 </RadioGroup>
               </div>

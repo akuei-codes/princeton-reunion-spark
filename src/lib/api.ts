@@ -108,7 +108,6 @@ export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
     
     // Get users who match the current user's gender preference
     // and whose gender preference includes the current user's gender
-    // Limit to 20 users for performance
     const { data, error } = await supabase
       .from('users')
       .select(`
@@ -122,8 +121,8 @@ export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
         gender,
         gender_preference,
         profile_complete,
-        intention,
         role,
+        vibe,
         created_at,
         updated_at,
         interests:user_interests(name:interests(*)),
@@ -145,7 +144,7 @@ export const getPotentialMatches = async (): Promise<UserWithRelations[]> => {
     const filteredMatches = data?.filter(user => !swipedUserIds.includes(user.id)) || [];
     console.timeEnd('getPotentialMatches'); // Log timing
     
-    return filteredMatches as UserWithRelations[];
+    return filteredMatches as unknown as UserWithRelations[];
   } catch (error) {
     console.error('Error getting potential matches:', error);
     throw error;
@@ -554,6 +553,10 @@ export const getUserLikers = async () => {
       throw swipesError;
     }
 
+    if (!likerSwipes || likerSwipes.length === 0) {
+      return [];
+    }
+
     // Get current user's swipes to filter out users they've already swiped on
     const { data: userSwipes } = await supabase
       .from('swipes')
@@ -564,6 +567,7 @@ export const getUserLikers = async () => {
     
     // Filter out users the current user has already swiped on
     const filteredLikerIds = likerSwipes
+      .filter(swipe => swipe.users && swipe.users.auth_id)
       .filter(swipe => !alreadySwipedUserIds.includes(swipe.user_id))
       .map(swipe => swipe.users.auth_id);
 

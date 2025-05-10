@@ -1,7 +1,6 @@
-
 export type UserRole = 'current_student' | 'recent_grad' | 'class_of_2025' | 'alum';
 
-export type UserVibe = 'Looking to Party' | 'Looking to Catch Up' | 'Down to Roam' | 'Looking for a Hook-Up';
+export type UserVibe = 'Looking to Party' | 'Looking to Catch Up' | 'Down to Roam' | 'Looking for a Hook-Up' | '🌙 Let\'s Just See Where the Night Takes Us' | '💑 Looking for Something Deeper';
 
 export type UserGender = 'male' | 'female' | 'non-binary' | 'other';
 

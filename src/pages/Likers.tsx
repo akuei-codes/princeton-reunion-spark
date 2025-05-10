@@ -1,20 +1,21 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Heart, X, ArrowLeft } from 'lucide-react';
+import { Heart, X, ArrowLeft, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { getUserLikers, recordSwipe } from '@/lib/api';
 import { UserWithRelations } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
-import { Badge } from '@/components/ui/badge'; // Add this import
+import { Badge } from '@/components/ui/badge';
 
 const LikersPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data: likers, isLoading, isError } = useQuery({
+  const { data: likers, isLoading, isError, refetch } = useQuery({
     queryKey: ['likers'],
     queryFn: getUserLikers
   });
@@ -87,6 +88,13 @@ const LikersPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-princeton-white mb-6">People Who Like You</h1>
           <div className="flex-1 flex items-center justify-center">
             <div className="text-princeton-white">Error loading admirers</div>
+            <Button 
+              variant="outline" 
+              className="mt-4"
+              onClick={() => refetch()}
+            >
+              Try Again
+            </Button>
           </div>
         </div>
       </div>
@@ -135,7 +143,13 @@ const LikersPage: React.FC = () => {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <h1 className="text-2xl font-bold text-princeton-white mb-6">People Who Like You</h1>
+        
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-princeton-white">People Who Like You</h1>
+          <Badge variant="outline" className="bg-purple-500/20 text-purple-300 border-purple-400">
+            {likers.length} {likers.length === 1 ? 'person' : 'people'}
+          </Badge>
+        </div>
         
         <div className="space-y-6">
           {likers.map((user: UserWithRelations) => (
@@ -143,32 +157,47 @@ const LikersPage: React.FC = () => {
               <CardHeader className="p-0">
                 <Carousel>
                   <CarouselContent>
-                    {user.photo_urls?.map((photoUrl, index) => (
-                      <CarouselItem key={index}>
-                        <div className="h-72 relative">
-                          <img
-                            src={photoUrl}
-                            alt={`${user.name}'s photo ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      </CarouselItem>
-                    )) || (
+                    {user.photo_urls && user.photo_urls.length > 0 ? (
+                      user.photo_urls.map((photoUrl, index) => (
+                        <CarouselItem key={index}>
+                          <div className="h-72 relative">
+                            <img
+                              src={photoUrl}
+                              alt={`${user.name}'s photo ${index + 1}`}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+                        </CarouselItem>
+                      ))
+                    ) : (
                       <CarouselItem>
                         <div className="h-72 bg-gray-700 flex items-center justify-center">
-                          <span className="text-gray-400">No photo</span>
+                          <User size={64} className="text-gray-400" />
                         </div>
                       </CarouselItem>
                     )}
                   </CarouselContent>
-                  <CarouselPrevious className="left-2" />
-                  <CarouselNext className="right-2" />
+                  {(user.photo_urls && user.photo_urls.length > 1) && (
+                    <>
+                      <CarouselPrevious className="left-2" />
+                      <CarouselNext className="right-2" />
+                    </>
+                  )}
                 </Carousel>
               </CardHeader>
               
               <CardContent className="p-4">
-                <h2 className="text-xl font-bold text-princeton-white">{user.name}, {user.class_year}</h2>
-                {user.major && <p className="text-princeton-orange">{user.major}</p>}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-princeton-white">{user.name}, {user.class_year}</h2>
+                    {user.major && <p className="text-princeton-orange">{user.major}</p>}
+                  </div>
+                  <div className="flex items-center">
+                    <Heart className="text-pink-500 fill-pink-500 mr-1" size={16} />
+                    <span className="text-xs text-pink-300">Likes you</span>
+                  </div>
+                </div>
                 
                 {/* Intention - Simplified */}
                 {user.intention && (

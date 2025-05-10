@@ -9,16 +9,10 @@ const CLOUDINARY_CLOUD_NAME = 'dmm2mff5r';
 export const uploadToCloudinary = async (file: File): Promise<string> => {
   try {
     console.log("Starting Cloudinary upload for file:", file.name, "size:", file.size);
-    // Convert File to base64
-    const base64data = await fileToBase64(file);
-    
-    if (!base64data) {
-      throw new Error("Failed to convert file to base64");
-    }
     
     // Create form data with required parameters
     const formData = new FormData();
-    formData.append('file', base64data);
+    formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_PRESET);
     formData.append('folder', 'user-photos');
     
@@ -43,23 +37,4 @@ export const uploadToCloudinary = async (file: File): Promise<string> => {
     console.error('Error uploading to Cloudinary:', error);
     throw new Error('Failed to upload image to Cloudinary');
   }
-};
-
-// Helper function to convert File to base64
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error('Failed to convert file to base64'));
-      }
-    };
-    reader.onerror = error => {
-      console.error("FileReader error:", error);
-      reject(error);
-    };
-  });
 };

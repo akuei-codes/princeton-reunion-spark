@@ -16,7 +16,7 @@ interface PotentialMatch {
   auth_id: string;
   id: string;
   name: string;
-  class_year: string;
+  class_year?: string; // Make class_year optional to match UserWithRelations
   bio?: string;
   major?: string;
   photo_urls?: string[];
@@ -27,9 +27,9 @@ interface PotentialMatch {
   interests: { name: { name: string } }[];
   // Adding missing properties to match UserWithRelations
   clubs: { name: { name: string } }[];
-  role: string;
-  created_at: string;
-  updated_at: string;
+  role?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface SwipeCardProps {

@@ -306,7 +306,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
               
               <div className="mb-4">
                 <h3 className="text-sm text-princeton-white/60 mb-1">Intention</h3>
-                <p>{intention === 'casual' ? 'Casual' : 'Serious' || 'Not specified'}</p>
+                <p>{intention ? (intention === 'casual' ? 'Casual' : 'Serious') : 'Not specified'}</p>
               </div>
             </div>
           </div>

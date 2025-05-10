@@ -21,6 +21,8 @@ const vibeOptions: VibeOption[] = [
   { id: 'catch-up', label: 'Looking to Catch Up', emoji: '💬' },
   { id: 'roam', label: 'Down to Roam', emoji: '🧡' },
   { id: 'hook-up', label: 'Looking for a Hook-Up', emoji: '❤️' },
+  { id: 'night', label: '🌙 Let\'s Just See Where the Night Takes Us', emoji: '🌙' },
+  { id: 'deeper', label: '💑 Looking for Something Deeper', emoji: '💑' },
 ];
 
 const genderOptions: { value: UserGender, label: string }[] = [

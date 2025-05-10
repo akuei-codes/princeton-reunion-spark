@@ -1,3 +1,4 @@
+
 export type UserRole = 'current_student' | 'recent_grad' | 'class_of_2025' | 'alum';
 
 export type UserVibe = 'Looking to Party' | 'Looking to Catch Up' | 'Down to Roam' | 'Looking for a Hook-Up' | '🌙 Let\'s Just See Where the Night Takes Us' | '💑 Looking for Something Deeper';
@@ -5,6 +6,8 @@ export type UserVibe = 'Looking to Party' | 'Looking to Catch Up' | 'Down to Roa
 export type UserGender = 'male' | 'female' | 'non-binary' | 'other';
 
 export type GenderPreference = 'male' | 'female' | 'everyone';
+
+export type UserIntention = 'casual' | 'serious';
 
 export interface User {
   id: string;
@@ -25,7 +28,7 @@ export interface User {
   profile_complete: boolean;
   created_at: string;
   updated_at: string;
-  intention?: 'casual' | 'serious'; // Add the intention property
+  intention?: UserIntention;
   unread?: boolean; // Add this for UI display
 }
 

@@ -542,11 +542,11 @@ export const getUserLikers = async () => {
     const { data: likerSwipes, error: swipesError } = await supabase
       .from('swipes')
       .select(`
-        user_id,
-        users:user_id(auth_id)
+        swiper_id,
+        user:swiper_id(auth_id)
       `)
-      .eq('target_user_id', currentUser.id)
-      .eq('is_like', true);
+      .eq('swiped_id', currentUser.id)
+      .eq('direction', 'right');
 
     if (swipesError) {
       console.error('Error getting likers:', swipesError);
@@ -560,15 +560,16 @@ export const getUserLikers = async () => {
     // Get current user's swipes to filter out users they've already swiped on
     const { data: userSwipes } = await supabase
       .from('swipes')
-      .select('target_user_id')
-      .eq('user_id', currentUser.id);
+      .select('swiped_id')
+      .eq('swiper_id', currentUser.id);
 
-    const alreadySwipedUserIds = userSwipes?.map(swipe => swipe.target_user_id) || [];
+    const alreadySwipedUserIds = userSwipes?.map(swipe => swipe.swiped_id) || [];
     
     // Filter out users the current user has already swiped on
     const filteredLikerIds = likerSwipes
-      .filter(swipe => swipe.users && swipe.users.auth_id)
-      .map(swipe => swipe.users.auth_id);
+      .filter(swipe => swipe.user && swipe.user.auth_id)
+      .filter(swipe => !alreadySwipedUserIds.includes(swipe.swiper_id))
+      .map(swipe => swipe.user.auth_id);
 
     // No likers
     if (filteredLikerIds.length === 0) {

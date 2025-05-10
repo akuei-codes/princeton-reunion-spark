@@ -1,4 +1,3 @@
-
 import { supabase } from './supabase';
 import { UserGender, GenderPreference } from '@/types/database';
 
@@ -86,9 +85,11 @@ export const updateUserProfile = async (profileData: {
 // Get potential matches for the current user
 export const getPotentialMatches = async () => {
   try {
+    console.time('getPotentialMatches'); // Add performance timing
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Not authenticated');
 
+    // Get current user with minimal fields needed
     const { data: currentUser } = await supabase
       .from('users')
       .select('id, gender, gender_preference')
@@ -97,27 +98,7 @@ export const getPotentialMatches = async () => {
 
     if (!currentUser) throw new Error('User profile not found');
 
-    // Get users who match the current user's gender preference
-    // and whose gender preference includes the current user's gender
-    const { data, error } = await supabase
-      .from('users')
-      .select(`
-        *,
-        interests:user_interests(name:interests(*)),
-        clubs:user_clubs(name:clubs(*))
-      `)
-      .neq('auth_id', session.user.id)
-      .in('gender', [currentUser.gender_preference, 'any'])
-      .in('gender_preference', [currentUser.gender, 'any'])
-      .eq('profile_complete', true)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error getting potential matches:', error);
-      throw error;
-    }
-
-    // Filter out users that the current user has already swiped on
+    // Get existing swipes in a separate query to optimize the main query
     const { data: swipes } = await supabase
       .from('swipes')
       .select('target_user_id')
@@ -125,7 +106,42 @@ export const getPotentialMatches = async () => {
 
     const swipedUserIds = swipes?.map(swipe => swipe.target_user_id) || [];
     
-    return data?.filter(user => !swipedUserIds.includes(user.id)) || [];
+    // Get users who match the current user's gender preference
+    // and whose gender preference includes the current user's gender
+    // Limit to 20 users for performance
+    const { data, error } = await supabase
+      .from('users')
+      .select(`
+        auth_id,
+        id,
+        name,
+        class_year,
+        bio,
+        major, 
+        photo_urls,
+        gender,
+        gender_preference,
+        profile_complete,
+        intention,
+        interests:user_interests(name:interests(*))
+      `)
+      .neq('auth_id', session.user.id)
+      .in('gender', [currentUser.gender_preference, 'any'])
+      .in('gender_preference', [currentUser.gender, 'any'])
+      .eq('profile_complete', true)
+      .order('created_at', { ascending: false })
+      .limit(20); // Limit results for better performance
+
+    if (error) {
+      console.error('Error getting potential matches:', error);
+      throw error;
+    }
+
+    // Filter out users that the current user has already swiped on
+    const filteredMatches = data?.filter(user => !swipedUserIds.includes(user.id)) || [];
+    console.timeEnd('getPotentialMatches'); // Log timing
+    
+    return filteredMatches;
   } catch (error) {
     console.error('Error getting potential matches:', error);
     throw error;
@@ -281,7 +297,7 @@ export const getUserMatches = async () => {
       const lastMessage = messages && messages.length > 0 ? messages[0] : null;
 
       // Check if there are unread messages for the current user
-      const { data: unreadCount } = await supabase
+      const { count: unreadCount } = await supabase
         .from('messages')
         .select('id', { count: 'exact' })
         .eq('match_id', match.id)

@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Heart, X, Moon, Users, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -9,7 +8,7 @@ import { getPotentialMatches, recordSwipe } from '@/lib/api';
 import { UserWithRelations } from '@/types/database';
 import ProfileCompletionNotification from './ProfileCompletionNotification';
 import { Button } from '@/components/ui/button';
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface SwipeCardProps {
   user: UserWithRelations;
@@ -26,7 +25,6 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
   const rotate = useTransform(x, [-200, 0, 200], [-20, 0, 20]);
   const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
   const scale = useTransform(x, [-200, -150, 0, 150, 200], [0.8, 0.9, 1, 0.9, 0.8]);
-  const cardBackgroundOpacity = useTransform(x, [-200, 0, 200], [0.8, 0, 0.8]);
   const rightIndicatorOpacity = useTransform(x, [0, 50, 100], [0, 0.5, 1]);
   const leftIndicatorOpacity = useTransform(x, [-100, -50, 0], [1, 0.5, 0]);
   
@@ -149,6 +147,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
                 src={user.photo_urls[currentImageIndex]}
                 alt={`${user.name}'s photo`}
                 className="w-full h-full object-cover"
+                loading="lazy" // Add lazy loading for better performance
               />
               
               {/* Image Navigation */}
@@ -220,7 +219,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe }) => {
         
         {/* Profile Info */}
         <div 
-          className="absolute bottom-0 w-full bg-gradient-to-t from-black to-transparent p-4"
+          className="absolute bottom-0 w-full p-4"
           style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0))" }}
           onClick={viewProfile}
         >
@@ -261,15 +260,32 @@ const NoMoreUsers = () => (
   </div>
 );
 
+const LoadingMatchesCard = () => (
+  <div className="h-full w-full flex flex-col bg-secondary rounded-xl overflow-hidden">
+    <Skeleton className="h-[70%] w-full bg-gray-300" />
+    <div className="p-4">
+      <Skeleton className="h-6 w-3/4 mb-2 bg-gray-300" />
+      <Skeleton className="h-4 w-1/2 mb-4 bg-gray-300" />
+      <Skeleton className="h-3 w-full mb-2 bg-gray-300" />
+      <Skeleton className="h-3 w-full mb-2 bg-gray-300" />
+      <div className="flex gap-2 mt-4">
+        <Skeleton className="h-4 w-16 rounded-full bg-gray-300" />
+        <Skeleton className="h-4 w-16 rounded-full bg-gray-300" />
+      </div>
+    </div>
+  </div>
+);
+
 const SwipePage: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Fetch potential matches
+  // Fetch potential matches with a staleTime to avoid refetching too often
   const { data: potentialMatches, isLoading, isError } = useQuery({
     queryKey: ['potential-matches'],
     queryFn: getPotentialMatches,
+    staleTime: 30000, // Data will be fresh for 30 seconds
     meta: {
       onError: (error: Error) => {
         console.error("Error fetching potential matches:", error);
@@ -283,27 +299,26 @@ const SwipePage: React.FC = () => {
   };
 
   // Handle button swipe
-  const handleButtonSwipe = (direction: 'left' | 'right') => {
+  const handleButtonSwipe = async (direction: 'left' | 'right') => {
     if (!potentialMatches || currentIndex >= potentialMatches.length) return;
     
     const user = potentialMatches[currentIndex];
     
-    recordSwipe(user.auth_id, direction)
-      .then(isMatch => {
-        if (isMatch) {
-          toast.success("It's a match! 🎉", {
-            action: {
-              label: "View Matches",
-              onClick: () => navigate('/matches')
-            }
-          });
-        }
-        setCurrentIndex(prevIndex => prevIndex + 1);
-      })
-      .catch((error) => {
-        console.error("Error recording swipe:", error);
-        toast.error("Error recording swipe");
-      });
+    try {
+      const isMatch = await recordSwipe(user.auth_id, direction);
+      if (isMatch) {
+        toast.success("It's a match! 🎉", {
+          action: {
+            label: "View Matches",
+            onClick: () => navigate('/matches')
+          }
+        });
+      }
+      setCurrentIndex(prevIndex => prevIndex + 1);
+    } catch (error) {
+      console.error("Error recording swipe:", error);
+      toast.error("Error recording swipe");
+    }
   };
 
   // Navigate to likers page
@@ -319,8 +334,17 @@ const SwipePage: React.FC = () => {
           <div className="mb-6">
             <ProfileCompletionNotification />
           </div>
-          <div className="flex-1 flex items-center justify-center">
-            <div className="animate-pulse text-princeton-white">Loading potential matches...</div>
+          <div className="flex justify-end mb-4">
+            <Button 
+              variant="outline" 
+              className="border-princeton-orange text-princeton-orange hover:bg-princeton-orange/10"
+              disabled
+            >
+              See Who Likes You
+            </Button>
+          </div>
+          <div className="flex-1 relative">
+            <LoadingMatchesCard />
           </div>
         </div>
       </div>
@@ -336,7 +360,15 @@ const SwipePage: React.FC = () => {
             <ProfileCompletionNotification />
           </div>
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-princeton-white">Error loading matches</div>
+            <div className="text-princeton-white bg-red-500/10 p-4 rounded-lg">
+              <p>Error loading matches</p>
+              <Button 
+                className="mt-4" 
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['potential-matches'] })}
+              >
+                Try Again
+              </Button>
+            </div>
           </div>
         </div>
       </div>

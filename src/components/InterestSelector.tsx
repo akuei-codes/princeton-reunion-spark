@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge'; // Make sure this import exists
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, X } from 'lucide-react';
 

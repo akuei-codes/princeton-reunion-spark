@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -142,19 +141,14 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
     setUploadError(null);
     
     try {
-      // Convert file to base64 for demo purposes
-      // In production, you'd upload to a storage service
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64 = reader.result as string;
-        
-        // Upload the photo
-        const updatedPhotos = await uploadUserPhoto(base64);
-        setPhotos(updatedPhotos);
-        setIsUploading(false);
-        toast.success('Photo uploaded successfully');
-      };
+      // Use the File object directly with the API function
+      const uploadedPhotoUrl = await uploadUserPhoto(file);
+      
+      // Update the photos array with the new photo URL
+      setPhotos(prevPhotos => [...prevPhotos, uploadedPhotoUrl]);
+      
+      setIsUploading(false);
+      toast.success('Photo uploaded successfully');
     } catch (error: any) {
       setIsUploading(false);
       setUploadError(error.message);
@@ -165,8 +159,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
   // Handle photo deletion
   const handleDeletePhoto = async (photoUrl: string) => {
     try {
-      const updatedPhotos = await deleteUserPhoto(photoUrl);
-      setPhotos(updatedPhotos);
+      await deleteUserPhoto(photoUrl);
+      // Update local state by filtering out the deleted photo
+      setPhotos(prevPhotos => prevPhotos.filter(url => url !== photoUrl));
       toast.success('Photo deleted successfully');
     } catch (error: any) {
       toast.error(`Failed to delete photo: ${error.message}`);

@@ -9,6 +9,7 @@ import { UserWithRelations } from '@/types/database';
 import ProfileCompletionNotification from './ProfileCompletionNotification';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge'; // Add this import
 
 // Define a proper type for PotentialMatch that satisfies UserWithRelations
 interface PotentialMatch {

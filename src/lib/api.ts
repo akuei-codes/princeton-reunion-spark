@@ -74,13 +74,16 @@ export const getUserById = async (userId: string): Promise<UserWithRelations | n
  */
 export const updateUserProfile = async (
   profileData: {
+    name?: string;
     bio?: string;
     major?: string;
     gender?: UserGender;
     gender_preference?: GenderPreference;
     building?: string;
     vibe?: string;
+    intention?: 'casual' | 'serious';
     photo_urls?: string[];
+    class_year?: string;
   }
 ) => {
   try {

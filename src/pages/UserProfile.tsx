@@ -37,6 +37,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
   const [gender, setGender] = useState<string>('');
   const [genderPreference, setGenderPreference] = useState<string>('');
   const [vibe, setVibe] = useState<string>('');
+  const [intention, setIntention] = useState<string>('casual'); // Add intention state
   const [photos, setPhotos] = useState<string[]>([]);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   
@@ -61,6 +62,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
       setGender(user.gender || '');
       setGenderPreference(user.gender_preference || '');
       setVibe(user.vibe || '');
+      setIntention(user.intention || 'casual'); // Set intention from user data
       setPhotos(user.photo_urls || []);
       
       // Extract interest IDs from the nested structure
@@ -107,8 +109,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
       name,
       bio,
       major,
+      class_year: classYear,
       gender,
       gender_preference: genderPreference,
+      vibe,
+      intention, // Include intention in profile data
       profile_complete: true
     };
     
@@ -298,6 +303,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
                 <h3 className="text-sm text-princeton-white/60 mb-1">Vibe</h3>
                 <p>{vibe || 'Not specified'}</p>
               </div>
+              
+              <div className="mb-4">
+                <h3 className="text-sm text-princeton-white/60 mb-1">Intention</h3>
+                <p>{intention === 'casual' ? 'Casual' : 'Serious' || 'Not specified'}</p>
+              </div>
             </div>
           </div>
           
@@ -434,6 +444,21 @@ const UserProfile: React.FC<UserProfileProps> = ({ viewUserId }) => {
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="everyone" id="pref-everyone" />
                     <Label htmlFor="pref-everyone" className="text-princeton-white">Everyone</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              
+              {/* Add intention selection */}
+              <div className="space-y-2">
+                <Label className="text-princeton-white">Dating Intention</Label>
+                <RadioGroup value={intention} onValueChange={setIntention} className="flex flex-col space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="casual" id="casual" />
+                    <Label htmlFor="casual" className="text-princeton-white">Casual</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="serious" id="serious" />
+                    <Label htmlFor="serious" className="text-princeton-white">Serious</Label>
                   </div>
                 </RadioGroup>
               </div>
